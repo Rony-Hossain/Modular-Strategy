@@ -299,6 +299,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (_lastFpResult.IsValid && snapshot.IsValid)
                 _divTracker.OnBar(_lastFpResult, snapshot.ATR, CurrentBar);
 
+            if (snapshot.IsValid)
+                _structLabeler.Update(snapshot, snapshot.Primary, CurrentBar);
+
             OnPopulateIndicatorBag(ref snapshot);
             _log?.BarContext_Tick(snapshot, CurrentBar);
             _log?.OrderFlowBar(snapshot.Primary.Time, snapshot); // RESTORED
