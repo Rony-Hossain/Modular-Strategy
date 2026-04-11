@@ -300,7 +300,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _divTracker.OnBar(_lastFpResult, snapshot.ATR, CurrentBar);
 
             if (snapshot.IsValid)
-                _structLabeler.Update(snapshot, snapshot.Primary, CurrentBar);
+                _structLabeler.Update(ref snapshot, snapshot.Primary, CurrentBar);
 
             OnPopulateIndicatorBag(ref snapshot);
             _log?.BarContext_Tick(snapshot, CurrentBar);

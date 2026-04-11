@@ -26,7 +26,6 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         private int _totalConfirmedSwings = 0;
         private SwingLabel _lastHighLabel = SwingLabel.None;
         private SwingLabel _lastLowLabel  = SwingLabel.None;
-        private int _debugCallCount = 0;
 
         // ── CHoCH one-shot tracking ──
         private int _chochLongRefBar  = -1; // BarIndex of the swing high that triggered the last bullish CHoCH
@@ -39,7 +38,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             public SwingLabel Label;
         }
 
-        public void Update(MarketSnapshot snapshot, BarSnapshot price, int currentBar)
+        public void Update(ref MarketSnapshot snapshot, BarSnapshot price, int currentBar)
         {
             // 1. Reset bar-specific flags
             snapshot.Set(SnapKeys.CHoCHFiredLong, 0.0);
@@ -48,28 +47,6 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             // 2. Detect Swings (Confirmed at i + 2)
             int evalIdx = currentBar - FRACTAL_N;
             if (evalIdx < FRACTAL_N) return;
-
-            if (_debugCallCount < 20)
-            {
-                _debugCallCount++;
-                var h = price.Highs;
-                var l = price.Lows;
-                bool hOk = h != null && h.Length >= 5;
-                bool lOk = l != null && l.Length >= 5;
-                NinjaTrader.Code.Output.Process(
-                    string.Format(
-                        "[STRUCT_DBG #{0}] bar={1} evalIdx={2} | " +
-                        "hLen={3} h0={4:F2} h1={5:F2} h2={6:F2} h3={7:F2} h4={8:F2} | " +
-                        "lLen={9} l0={10:F2} l1={11:F2} l2={12:F2} l3={13:F2} l4={14:F2} | " +
-                        "isHigh={15} isLow={16} totalSwings={17}",
-                        _debugCallCount, currentBar, evalIdx,
-                        hOk ? h.Length : -1,
-                        hOk ? h[0] : 0, hOk ? h[1] : 0, hOk ? h[2] : 0, hOk ? h[3] : 0, hOk ? h[4] : 0,
-                        lOk ? l.Length : -1,
-                        lOk ? l[0] : 0, lOk ? l[1] : 0, lOk ? l[2] : 0, lOk ? l[3] : 0, lOk ? l[4] : 0,
-                        IsSwingHigh(h), IsSwingLow(l), _totalConfirmedSwings),
-                    NinjaTrader.NinjaScript.PrintTo.OutputTab1);
-            }
 
             if (IsSwingHigh(price.Highs))
             {
