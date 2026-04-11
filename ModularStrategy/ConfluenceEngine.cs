@@ -1,0 +1,498 @@
+#region Using declarations
+using System;
+using MathLogic;
+using MathLogic.Strategy;
+using MarketSnapshot = MathLogic.Strategy.MarketSnapshot;
+#endregion
+
+namespace NinjaTrader.NinjaScript.Strategies
+{
+    /// <summary>
+    /// CONFLUENCE ENGINE — structured, layered edge scoring.
+    ///
+    /// Consumes the MarketSnapshot bag and returns a ConfluenceResult
+    /// that SignalRankingEngine uses to re-weight each RawDecision score.
+    ///
+    /// Design contract:
+    ///   - Stateless. Caller passes snapshot, gets result. No side effects.
+    ///   - Layers are independent. A missing data source degrades that layer
+    ///     to zero — it never blocks the entire score.
+    ///   - Veto is binary. If the orderflow opposes direction, result.IsVetoed
+    ///     = true regardless of score. SignalRankingEngine must honour this.
+    ///   - ConfluenceResult is a VALUE TYPE (struct). Zero heap allocation
+    ///     per bar. Safe to call inside the NT8 bar update loop.
+    ///
+    /// Layer budget (max 100 before penalty):
+    ///   A — MTFA macro bias       : 0–30
+    ///   B — Level Registry        : 0–40  (HTF swings + session + pivots + stacked bonus)
+    ///   C — OrderFlow conviction  : 0–30
+    ///       With Volumetric: CVD div, DeltaSl/Sh, Absorption, StackedImbalance, BarDelta
+    ///       Without Volumetric: BarDelta proxy, SMF Regime, VWAP side, H1 direction
+    ///   D — Price action trigger  : 0–15
+    ///       CHoCH fired this bar → full reversal credit (bypasses stale label check)
+    ///       Continuation → HH+HL / LH+LL label scoring
+    ///   E — Macro penalty         : −18 max
+    /// </summary>
+    public static class ConfluenceEngine
+    {
+        // ── Layer A weights (MTFA) ────────────────────────────────────────
+        private const int LAYER_A_H4 = 14;   // 4H — dominant macro anchor
+        private const int LAYER_A_H2 = 10;   // 2H — intermediate filter
+        private const int LAYER_A_H1 =  6;   // 1H — execution TF bias
+
+        // Layer B weights are owned by LevelRegistry — see LevelRegistry.cs.
+        // ConfluenceEngine reads the pre-computed FinalScore via LevelRegistry.Score().
+
+        // ── Layer C weights (OrderFlow) ───────────────────────────────────
+        private const int LAYER_C_DIVERGENCE  = 15;  // CVD divergence confirms
+        private const int LAYER_C_DELTA_SL    =  8;  // buying at bar low (DeltaSl)
+        private const int LAYER_C_ABS_MAX     =  7;  // absorption — graduated below
+        private const int LAYER_C_DELTA_EXHST =  8;  // delta exhaustion confirms signal direction
+        private const int LAYER_C_IMBAL_ZONE  =  6;  // price at historical imbalance zone
+
+        // ── Layer D weights (Price action trigger) ────────────────────────
+        private const int LAYER_D_FULL_STRUCT = 12;  // HH+HL or LH+LL confirmed
+        private const int LAYER_D_TREND_ONLY  =  8;  // swing trend agrees only
+
+        // ── Penalty weights ───────────────────────────────────────────────
+        private const int PENALTY_H4 =  8;
+        private const int PENALTY_H2 =  5;
+        private const int PENALTY_BOTH_EXTRA = 5;    // stacks when both oppose
+
+        // =================================================================
+        public static ConfluenceResult Evaluate(bool isLong, MarketSnapshot snap,
+            in SupportResistanceResult sr,
+            string conditionSetId = "")
+        {
+            if (!snap.IsValid)
+                return ConfluenceResult.Invalid();
+
+            var    p        = snap.Primary;
+
+            int layerA = 0, layerB = 0, layerC = 0, layerD = 0, penalty = 0;
+            bool isVetoed = false;
+
+            // BOSWave signals (SMF_Native_*) are flow-based, not structure-based.
+            // They trade pullbacks and retests — by design they fire counter to
+            // the HTF EMA trend. Applying the macro penalty kills valid signals.
+            // For BOSWave: Layer A and macro penalty are both disabled.
+            // Layer B (level proximity) is also disabled — BOSWave entries happen
+            // at the SMF basis (a 34-bar EMA), not at HTF structural levels.
+            // Layer C and D remain fully active — order flow and swing structure
+            // are still valid quality filters for flow-based signals.
+            bool isBOSWave = !string.IsNullOrEmpty(conditionSetId)
+                && conditionSetId.StartsWith("SMF_Native_");
+
+            // =============================================================
+            // LAYER A — MTFA macro bias (0–30)
+            // Disabled for BOSWave — flow signals are direction-agnostic to HTF EMA.
+            // =============================================================
+            double h4b = snap.Get(SnapKeys.H1EmaBias);
+            double h2b = snap.Get(SnapKeys.H2HrEmaBias);
+            double h1b = snap.Get(SnapKeys.H4HrEmaBias);
+
+            if (!isBOSWave)
+            {
+                if (h4b != 0 && ((isLong && h4b > 0) || (!isLong && h4b < 0))) layerA += LAYER_A_H4;
+                if (h2b != 0 && ((isLong && h2b > 0) || (!isLong && h2b < 0))) layerA += LAYER_A_H2;
+                if (h1b != 0 && ((isLong && h1b > 0) || (!isLong && h1b < 0))) layerA += LAYER_A_H1;
+            }
+
+            // Macro opposition penalty — disabled for BOSWave, active for all others.
+            bool h4Opposes = h4b != 0 && ((isLong && h4b < 0) || (!isLong && h4b > 0));
+            bool h2Opposes = h2b != 0 && ((isLong && h2b < 0) || (!isLong && h2b > 0));
+            if (!isBOSWave)
+            {
+                if (h4Opposes) penalty += PENALTY_H4;
+                if (h2Opposes) penalty += PENALTY_H2;
+                if (h4Opposes && h2Opposes) penalty += PENALTY_BOTH_EXTRA;
+            }
+
+            // =============================================================
+            // LAYER B — SupportResistanceEngine (0–40)
+            // =============================================================
+            // Disabled for BOSWave — BOSWave entries happen at the SMF basis
+            // (34-bar EMA), not at HTF structural levels. Requiring level
+            // proximity would kill valid flow-based signals that have no reason
+            // to be near a 4H swing or PDH/PDL.
+            if (!isBOSWave)
+            {
+                layerB = EvaluateSRLayerB(isLong, in sr);
+                if (layerB == -1) 
+                {
+                    isVetoed = true;
+                    layerB = 0;
+                }
+            }
+
+            // =============================================================
+            // LAYER C — OrderFlow conviction (0–30)
+            // =============================================================
+            bool hasVol = snap.GetFlag(SnapKeys.HasVolumetric);
+
+            if (hasVol)
+            {
+                // ── LAYER C: Footprint Centralization ──────────────────────────
+                // FIX (#28): Layer C footprint scoring is now handled EXCLUSIVELY
+                // by the FootprintEntryAdvisor to avoid double-counting. 
+                // This block is now a passthrough for volumetric mode.
+                // Fallback path below still uses proxies when Volumetric is off.
+            }
+            else
+            {
+                // These are structurally weaker signals but always present.
+                // Max possible here is ~22 vs 30 with full Volumetric — reflects
+                // reduced conviction when real order flow data is unavailable.
+
+                // BarDelta from DataFeed (always populated, even without Volumetric)
+                // Positive = buyers were net aggressive this bar, negative = sellers.
+                double bd = snap.Get(SnapKeys.BarDelta);
+                if (isLong  && bd > 0) layerC += 7;   // directional bar pressure
+                if (!isLong && bd < 0) layerC += 7;
+
+                // SMF Regime agreement — money flow confirms direction
+                // Already used in LayerA penalty, but the raw regime is also the
+                // strongest always-available conviction signal. Not double-counted
+                // because LayerA scores EMA bias, not the regime flag itself.
+                int regime = (int)snap.Get(SnapKeys.Regime);
+                if ((isLong && regime > 0) || (!isLong && regime < 0)) layerC += 6;
+
+                // VWAP side — price above VWAP = buyers in control, below = sellers
+                // Strongest price-only conviction proxy for intraday
+                if (snap.VWAP > 0)
+                {
+                    bool aboveVwap = p.Close > snap.VWAP;
+                    if ((isLong && aboveVwap) || (!isLong && !aboveVwap)) layerC += 5;
+                }
+
+                // Higher1 (15-min) bar direction — momentum proxy
+                // A 15-min bar closing higher than prior = buyers dominant on that TF
+                if (snap.Higher1.Closes != null && snap.Higher1.Closes.Length >= 2)
+                {
+                    bool h1Rising = snap.Higher1.Close > snap.Higher1.Closes[1];
+                    if ((isLong && h1Rising) || (!isLong && !h1Rising)) layerC += 4;
+                }
+
+                // SMF NonConfirmation veto — when SMF explicitly flags flow disagrees
+                // Only meaningful veto signal available without Volumetric
+                if (isLong  && snap.GetFlag(SnapKeys.NonConfLong))  isVetoed = true;
+                if (!isLong && snap.GetFlag(SnapKeys.NonConfShort)) isVetoed = true;
+            }
+
+            layerC = Math.Min(layerC, 30);  // hard cap applies to both paths
+
+            // =============================================================
+            // LAYER D — Price action structure on execution TF (0–15)
+            // =============================================================
+            // TWO PATHS:
+            //   1. CHoCH fired this bar — reversal entry. Score positively
+            //      regardless of stale swing labels (they still show old trend).
+            //   2. No CHoCH — score based on confirmed swing structure labels.
+            //
+            // Read swing state from snap bag. Written by SMCBase.UpdateSwings()
+            // on every bar that an SMC condition set evaluates.
+            // If no SMC sets registered, all keys are 0 — layer degrades to 0.
+            double confirmedSwings = snap.Get(SnapKeys.ConfirmedSwings);
+
+            // CHoCH reversal path — takes priority over label-based scoring
+            bool chochFiredLong  = snap.GetFlag(SnapKeys.CHoCHFiredLong);
+            bool chochFiredShort = snap.GetFlag(SnapKeys.CHoCHFiredShort);
+
+            if (isLong  && chochFiredLong)
+            {
+                // Bullish CHoCH fired this bar. Structure labels are stale (still show
+                // LH+LL from prior trend). Give full reversal structure credit.
+                layerD += LAYER_D_FULL_STRUCT;
+            }
+            else if (!isLong && chochFiredShort)
+            {
+                // Bearish CHoCH fired this bar — same logic, mirror side.
+                layerD += LAYER_D_FULL_STRUCT;
+            }
+            else if (confirmedSwings >= 4)
+            {
+                // Normal continuation path — score based on confirmed labels
+                double swingTrend    = snap.Get(SnapKeys.SwingTrend);
+                double lastHighLabel = snap.Get(SnapKeys.LastHighLabel);
+                double lastLowLabel  = snap.Get(SnapKeys.LastLowLabel);
+
+                bool fullBull = (isLong
+                    && lastHighLabel == (double)SwingLabel.HH
+                    && lastLowLabel  == (double)SwingLabel.HL);
+                bool fullBear = (!isLong
+                    && lastHighLabel == (double)SwingLabel.LH
+                    && lastLowLabel  == (double)SwingLabel.LL);
+
+                if (fullBull || fullBear)
+                    layerD += LAYER_D_FULL_STRUCT;
+                else if ((isLong && swingTrend > 0) || (!isLong && swingTrend < 0))
+                    layerD += LAYER_D_TREND_ONLY;
+            }
+
+            // =============================================================
+            // TOTAL
+            // =============================================================
+            int rawTotal = layerA + layerB + layerC + layerD;
+
+            //bool isORB = p.Source == SignalSource.ORB_Breakout || p.Source == SignalSource.ORB_Retest;
+
+            // ── PERFORMANCE TUNING: Maturity Gate ───────────────────────
+            // FIX: Prevent trades in structural "voids" before levels are mapped.
+            // If less than 3 swings confirmed, apply a -20 penalty.
+            // EXEMPTION: ORB signals happen early and are exempt.
+            //if (confirmedSwings < 3 && !isORB)
+            //{
+            //    penalty += 20;
+            //}
+
+            // ── PERFORMANCE TUNING: Value Area Constraints (Longs) ──────
+            // FIX: Stop buying "high" during range expansions.
+            // EXEMPTION: ORB is a breakout strategy; buying high is the point.
+			//            if (isLong && !isORB)
+
+			            if (isLong)
+
+            {
+                double poc = snap.Get(SnapKeys.POC);
+                double val = snap.Get(SnapKeys.VALow);
+                if (poc > 0 && p.Close > poc) penalty += 15; // Penalty for buying above fair value
+                if (val > 0 && p.Close < val) rawTotal += 10; // Bonus for buying at deep discount
+            }
+
+            int netScore = Math.Max(0, rawTotal - penalty);
+
+            double multiplier = isVetoed
+                ? 0.0
+                : Math.Max(0.5, Math.Min(1.5, 0.5 + netScore / 100.0));
+
+            // ── Build per-layer reason string for log diagnostics ─────────
+            // Format: "A:reasons B:reasons C:reasons D:reasons [Pen:reasons]"
+            // Each reason tag is 2-4 chars so the full string stays compact.
+            var sb = new System.Text.StringBuilder(64);
+
+            // LayerA reasons
+            sb.Append("A:");
+            if (layerA == 0)
+            {
+                sb.Append(h4b == 0 && h2b == 0 && h1b == 0 ? "cold" : "opp");
+            }
+            else
+            {
+                if (h4b != 0 && ((isLong && h4b > 0) || (!isLong && h4b < 0))) sb.Append("h4+");
+                if (h2b != 0 && ((isLong && h2b > 0) || (!isLong && h2b < 0))) sb.Append("h2+");
+                if (h1b != 0 && ((isLong && h1b > 0) || (!isLong && h1b < 0))) sb.Append("h1+");
+            }
+
+            // LayerB reasons — summarize SR location/strength context
+            sb.Append(" B:");
+            sb.Append(DescribeSRLayerB(isLong, in sr, layerB));
+
+            // LayerC reasons
+            sb.Append(" C:");
+            if (layerC == 0) { sb.Append("none"); }
+            else if (hasVol)
+            {
+                // Volumetric mode: Layer C is now a passthrough for diagnostics.
+                // Actual scoring is centralized in FootprintEntryAdvisor.
+                sb.Append("vol+");
+            }
+            else
+            {
+                double bd2 = snap.Get(SnapKeys.BarDelta);
+                if ((isLong && bd2 > 0) || (!isLong && bd2 < 0)) sb.Append("bd+");
+                int reg = (int)snap.Get(SnapKeys.Regime);
+                if ((isLong && reg > 0) || (!isLong && reg < 0)) sb.Append("reg+");
+                if (snap.VWAP > 0)
+                {
+                    bool above = p.Close > snap.VWAP;
+                    if ((isLong && above) || (!isLong && !above)) sb.Append("vwap+");
+                }
+                if (snap.GetFlag(SnapKeys.NonConfLong) || snap.GetFlag(SnapKeys.NonConfShort)) sb.Append("ncVETO");
+            }
+
+            // LayerD reasons
+            sb.Append(" D:");
+            bool cfLong  = snap.GetFlag(SnapKeys.CHoCHFiredLong);
+            bool cfShort = snap.GetFlag(SnapKeys.CHoCHFiredShort);
+            if ((isLong && cfLong) || (!isLong && cfShort))
+            {
+                sb.Append("choch");
+            }
+            else if (layerD > 0)
+            {
+                double lastHighLabel = snap.Get(SnapKeys.LastHighLabel);
+                double lastLowLabel  = snap.Get(SnapKeys.LastLowLabel);
+                bool fullBull = isLong
+                    && lastHighLabel == (double)SwingLabel.HH
+                    && lastLowLabel  == (double)SwingLabel.HL;
+                bool fullBear = !isLong
+                    && lastHighLabel == (double)SwingLabel.LH
+                    && lastLowLabel  == (double)SwingLabel.LL;
+                if (fullBull)      sb.Append("HH+HL");
+                else if (fullBear) sb.Append("LH+LL");
+                else               sb.Append("trend");
+            }
+            else
+            {
+                sb.Append(confirmedSwings < 4
+                    ? string.Format("sw={0}", (int)confirmedSwings)
+                    : "none");
+            }
+
+            // Penalty reasons
+            if (penalty > 0)
+            {
+                sb.Append(" Pen:");
+                if (h4Opposes) sb.Append("h4-");
+                if (h2Opposes) sb.Append("h2-");
+            }
+
+            return new ConfluenceResult
+            {
+                LayerA     = layerA,
+                LayerB     = layerB,
+                LayerC     = layerC,
+                LayerD     = layerD,
+                Penalty    = penalty,
+                NetScore   = netScore,
+                IsVetoed   = isVetoed,
+                IsValid    = true,
+                Multiplier = multiplier,
+                Detail     = sb.ToString()
+            };
+        }
+
+        private static int EvaluateSRLayerB(bool isLong, in SupportResistanceResult sr)
+        {
+            if (!sr.IsValid)
+                return 0;
+
+            SRZone nearFavorable   = isLong ? sr.NearestSupport    : sr.NearestResistance;
+            SRZone nearAdverse     = isLong ? sr.NearestResistance : sr.NearestSupport;
+            SRZone strongFavorable = isLong ? sr.StrongestSupport  : sr.StrongestResistance;
+
+            bool   atFavorable  = isLong ? sr.AtSupport    : sr.AtResistance;
+            bool   atAdverse    = isLong ? sr.AtResistance : sr.AtSupport;
+            double favorableAtr = isLong ? sr.ATRsToSupport    : sr.ATRsToResistance;
+            double adverseAtr   = isLong ? sr.ATRsToResistance : sr.ATRsToSupport;
+
+            int score = 0;
+
+            if (atAdverse)
+                return 0;
+
+            // ── PERFORMANCE TUNING: Brick Wall Veto ────────────────────
+            // FIX (#idea2): Veto trades entered too close to adverse structural levels.
+            // If within 0.20 ATR of a major level (Support for Shorts, Resistance for Longs),
+            // return -1 to signal a VETO to the ranking engine.
+            if (nearAdverse.IsValid && adverseAtr > 0.0 && adverseAtr <= 0.20)
+            {
+                return -1; // Special sentinel for VETO
+            }
+
+            if (atFavorable) score += 18;
+            else if (nearFavorable.IsValid)
+            {
+                if      (favorableAtr > 0.0 && favorableAtr <= 0.35) score += 12;
+                else if (favorableAtr > 0.0 && favorableAtr <= 0.75) score += 8;
+                else if (favorableAtr > 0.0 && favorableAtr <= 1.25) score += 4;
+            }
+
+            bool favorableContext = atFavorable
+                || (nearFavorable.IsValid && favorableAtr > 0.0 && favorableAtr <= 1.50);
+
+            if (strongFavorable.IsValid && favorableContext)
+            {
+                if      (strongFavorable.Strength >= 30) score += 8;
+                else if (strongFavorable.Strength >= 20) score += 5;
+                else if (strongFavorable.Strength >= 12) score += 3;
+
+                if (SRSourceTypeHelper.IsStacked(strongFavorable.Sources))
+                    score += 6;
+            }
+
+            if (nearAdverse.IsValid)
+            {
+                if      (adverseAtr > 0.0 && adverseAtr <= 0.35) score -= 10;
+                else if (adverseAtr > 0.0 && adverseAtr <= 0.75) score -= 6;
+                else if (adverseAtr > 0.0 && adverseAtr <= 1.25) score -= 3;
+            }
+
+            if (score < 0)  score = 0;
+            if (score > 40) score = 40;
+            return score;
+        }
+
+        private static string DescribeSRLayerB(bool isLong, in SupportResistanceResult sr, int layerB)
+        {
+            if (!sr.IsValid || layerB <= 0)
+                return "none";
+
+            bool atFavorable = isLong ? sr.AtSupport : sr.AtResistance;
+            bool atAdverse   = isLong ? sr.AtResistance : sr.AtSupport;
+            SRZone near      = isLong ? sr.NearestSupport : sr.NearestResistance;
+            SRZone strong    = isLong ? sr.StrongestSupport : sr.StrongestResistance;
+
+            if (atAdverse)
+                return "opp";
+
+            string loc = atFavorable ? "touch"
+                       : near.IsValid ? "near"
+                       : "ctx";
+
+            string strength = strong.IsValid ? ("s" + strong.Strength.ToString()) : "s0";
+            string stacked  = (strong.IsValid && SRSourceTypeHelper.IsStacked(strong.Sources))
+                ? "+stk"
+                : string.Empty;
+
+            return loc + "+" + strength + stacked;
+        }
+    }
+
+    // =========================================================================
+    // RESULT — struct, not class. Zero heap allocation. Stack-only lifetime.
+    // =========================================================================
+
+    /// <summary>
+    /// Output of ConfluenceEngine.Evaluate(). VALUE TYPE — no GC pressure.
+    ///
+    /// IsVetoed=true means SignalRankingEngine must discard the candidate
+    /// regardless of FinalScore.
+    ///
+    /// Multiplier is applied to RawScore:
+    ///   FinalScore = RawDecision.RawScore × ConfluenceResult.Multiplier
+    /// </summary>
+    public struct ConfluenceResult
+    {
+        public int    LayerA     { get; set; }
+        public int    LayerB     { get; set; }
+        public int    LayerC     { get; set; }
+        public int    LayerD     { get; set; }
+        public int    Penalty    { get; set; }
+        public int    NetScore   { get; set; }
+        public bool   IsVetoed   { get; set; }
+        public bool   IsValid    { get; set; }
+        public double Multiplier { get; set; }
+        /// <summary>
+        /// Human-readable explanation of what contributed to each layer.
+        /// e.g. "A:h4+h2+h1 B:4Hsw+London C:BullDiv+DeltaSl D:CHoCH"
+        /// Written by ConfluenceEngine.Evaluate(). Used in log detail column.
+        /// </summary>
+        public string Detail     { get; set; }
+
+        public static ConfluenceResult Invalid()
+            => new ConfluenceResult { IsValid = false, Multiplier = 1.0 };
+
+        public override string ToString()
+            => string.Format("A={0} B={1} C={2} D={3} Pen={4} Net={5} Mult={6:F2}{7}",
+                LayerA, LayerB, LayerC, LayerD, Penalty, NetScore,
+                Multiplier, IsVetoed ? " VETOED" : "");
+
+        /// <summary>Full debug string including per-layer reasons.</summary>
+        public string ToDetailString()
+            => string.Format("A={0} B={1} C={2} D={3} Pen={4} Net={5} Mult={6:F2}{7} | {8}",
+                LayerA, LayerB, LayerC, LayerD, Penalty, NetScore,
+                Multiplier, IsVetoed ? " VETOED" : "",
+                string.IsNullOrEmpty(Detail) ? "?" : Detail);
+    }
+}
