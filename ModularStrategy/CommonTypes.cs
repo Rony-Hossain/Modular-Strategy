@@ -730,6 +730,107 @@ namespace MathLogic
         /// </summary>
         public const string CHoCHFiredShort = "CHoCHFiredShort";
 
+        // ── Break of Structure (one-shot, mirror of CHoCH pattern) ──────────
+        // Published by structural producer when price breaks a confirmed swing.
+        // Resets to 0.0 each bar. 1.0 only on the bar of the break.
+
+        /// <summary>1.0 when bullish BOS fires (price breaks a confirmed swing high).</summary>
+        public const string BOSFiredLong = "BOSFiredLong";
+
+        /// <summary>1.0 when bearish BOS fires (price breaks a confirmed swing low).</summary>
+        public const string BOSFiredShort = "BOSFiredShort";
+
+        // ── Fair Value Gap (FVG) zones ──────────────────────────────────────
+        // 3-bar imbalance patterns that persist as zones until filled.
+        // Active = 1.0 when a current FVG exists in that direction; 0.0 otherwise.
+        // Low/High define the zone price bounds. Read only when Active = 1.0.
+
+        /// <summary>1.0 when a bullish FVG zone is currently active.</summary>
+        public const string FvgBullActive = "FvgBullActive";
+
+        /// <summary>Lower price bound of the active bullish FVG zone.</summary>
+        public const string FvgBullLow = "FvgBullLow";
+
+        /// <summary>Upper price bound of the active bullish FVG zone.</summary>
+        public const string FvgBullHigh = "FvgBullHigh";
+
+        /// <summary>1.0 when a bearish FVG zone is currently active.</summary>
+        public const string FvgBearActive = "FvgBearActive";
+
+        /// <summary>Lower price bound of the active bearish FVG zone.</summary>
+        public const string FvgBearLow = "FvgBearLow";
+
+        /// <summary>Upper price bound of the active bearish FVG zone.</summary>
+        public const string FvgBearHigh = "FvgBearHigh";
+
+        // ── Inversion FVG (IFVG) zones ──────────────────────────────────────
+        // FVGs that were filled and now act in the opposite direction.
+
+        /// <summary>1.0 when a bullish IFVG zone is currently active.</summary>
+        public const string IfvgBullActive = "IfvgBullActive";
+
+        /// <summary>Lower price bound of the active bullish IFVG zone.</summary>
+        public const string IfvgBullLow = "IfvgBullLow";
+
+        /// <summary>Upper price bound of the active bullish IFVG zone.</summary>
+        public const string IfvgBullHigh = "IfvgBullHigh";
+
+        /// <summary>1.0 when a bearish IFVG zone is currently active.</summary>
+        public const string IfvgBearActive = "IfvgBearActive";
+
+        /// <summary>Lower price bound of the active bearish IFVG zone.</summary>
+        public const string IfvgBearLow = "IfvgBearLow";
+
+        /// <summary>Upper price bound of the active bearish IFVG zone.</summary>
+        public const string IfvgBearHigh = "IfvgBearHigh";
+
+        // ── Order Block (OB) zones ──────────────────────────────────────────
+        // Last opposing candle before an impulse move. Persistent zone.
+
+        /// <summary>1.0 when a bullish order block zone is currently active.</summary>
+        public const string ObBullActive = "ObBullActive";
+
+        /// <summary>Lower price bound of the active bullish order block.</summary>
+        public const string ObBullLow = "ObBullLow";
+
+        /// <summary>Upper price bound of the active bullish order block.</summary>
+        public const string ObBullHigh = "ObBullHigh";
+
+        /// <summary>1.0 when a bearish order block zone is currently active.</summary>
+        public const string ObBearActive = "ObBearActive";
+
+        /// <summary>Lower price bound of the active bearish order block.</summary>
+        public const string ObBearLow = "ObBearLow";
+
+        /// <summary>Upper price bound of the active bearish order block.</summary>
+        public const string ObBearHigh = "ObBearHigh";
+
+        // ── Location-aware footprint fields ─────────────────────────────────
+        // Already computed inside FootprintResult but never published.
+        // Lets consumers ask "WHERE on the bar was the heavy volume" not just
+        // "how much."
+
+        /// <summary>Price level of the heaviest bid volume on the current bar.</summary>
+        public const string MaxBidVolPrice = "MaxBidVolPrice";
+
+        /// <summary>Price level of the heaviest ask volume on the current bar.</summary>
+        public const string MaxAskVolPrice = "MaxAskVolPrice";
+
+        /// <summary>Price level of the heaviest combined (bid+ask) volume on the bar.</summary>
+        public const string MaxCombinedVolPrice = "MaxCombinedVolPrice";
+
+        /// <summary>Lower price bound of the bull stacked-imbalance run on the bar.</summary>
+        public const string BullStackLow = "BullStackLow";
+
+        /// <summary>Upper price bound of the bull stacked-imbalance run on the bar.</summary>
+        public const string BullStackHigh = "BullStackHigh";
+
+        /// <summary>Lower price bound of the bear stacked-imbalance run on the bar.</summary>
+        public const string BearStackLow = "BearStackLow";
+
+        /// <summary>Upper price bound of the bear stacked-imbalance run on the bar.</summary>
+        public const string BearStackHigh = "BearStackHigh";
+
         // ── Volume profile ───────────────────────────────────────────────
         // Published by SupportResistanceEngine.Update() each bar.
         // Computed from SupportResistanceEngine (price→volume profile).
