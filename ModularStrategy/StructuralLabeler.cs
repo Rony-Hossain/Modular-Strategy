@@ -43,6 +43,8 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             // 1. Reset bar-specific flags
             snapshot.Set(SnapKeys.CHoCHFiredLong, 0.0);
             snapshot.Set(SnapKeys.CHoCHFiredShort, 0.0);
+            snapshot.Set(SnapKeys.BOSFiredLong, 0.0);
+            snapshot.Set(SnapKeys.BOSFiredShort, 0.0);
 
             // 2. Detect Swings (Confirmed at i + 2)
             int evalIdx = currentBar - FRACTAL_N;
@@ -115,6 +117,35 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
             AddSwing(_highs, price, barIdx, label);
             _lastHighLabel = label;
+            _totalConfirmedSwings++;
+        }
+
+        private void ProcessNewLow(double price, int barIdx)
+        {
+            SwingLabel label = (_lows.Count > 0)
+                ? (price < _lows[_lows.Count - 1].Price ? SwingLabel.LL : SwingLabel.HL)
+                : SwingLabel.LL;
+
+            AddSwing(_lows, price, barIdx, label);
+            _lastLowLabel = label;
+            _totalConfirmedSwings++;
+        }
+
+        private void AddSwing(List<SwingPoint> list, double price, int barIdx, SwingLabel label)
+        {
+            if (list.Count >= MAX_SWINGS) list.RemoveAt(0);
+            list.Add(new SwingPoint { Price = price, BarIndex = barIdx, Label = label });
+        }
+
+        private double DeriveTrend()
+        {
+            if (_lastHighLabel == SwingLabel.HH && _lastLowLabel == SwingLabel.HL) return 1.0;
+            if (_lastHighLabel == SwingLabel.LH && _lastLowLabel == SwingLabel.LL) return -1.0;
+            return 0.0;
+        }
+    }
+}
+ighLabel = label;
             _totalConfirmedSwings++;
         }
 
