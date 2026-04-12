@@ -20,7 +20,6 @@ namespace NinjaTrader.NinjaScript.Strategies
         private readonly FvgZone[] _bearZones = new FvgZone[MAX_ZONES];
         private int _bullWriteIdx = 0;
         private int _bearWriteIdx = 0;
-        private int _debugUpdateCount = 0;
 
         private struct FvgZone
         {
@@ -43,33 +42,6 @@ namespace NinjaTrader.NinjaScript.Strategies
             double close = price.Close;
             double tickSize = price.TickSize;
             double minGap = atr * MIN_GAP_ATR;
-
-            // Temporary diagnostic — first 20 bars with valid data
-            if (_debugUpdateCount < 20)
-            {
-                _debugUpdateCount++;
-                double bullGapSize = price.Lows[0] - price.Highs[2];
-                double bearGapSize = price.Lows[2] - price.Highs[0];
-                int activeBulls = 0, activeBears = 0;
-                for (int i = 0; i < MAX_ZONES; i++)
-                {
-                    if (_bullZones[i].IsActive) activeBulls++;
-                    if (_bearZones[i].IsActive) activeBears++;
-                }
-                NinjaTrader.Code.Output.Process(
-                    string.Format(
-                        "[FVG_DBG #{0}] bar={1} atr={2:F2} minGap={3:F2} | " +
-                        "h0={4:F2} l0={5:F2} h2={6:F2} l2={7:F2} | " +
-                        "bullGap={8:F2} bearGap={9:F2} | " +
-                        "activeBulls={10} activeBears={11} | " +
-                        "writeIdxB={12} writeIdxS={13}",
-                        _debugUpdateCount, currentBar, atr, minGap,
-                        price.Highs[0], price.Lows[0], price.Highs[2], price.Lows[2],
-                        bullGapSize, bearGapSize,
-                        activeBulls, activeBears,
-                        _bullWriteIdx, _bearWriteIdx),
-                    NinjaTrader.NinjaScript.PrintTo.OutputTab1);
-            }
 
             // Expire filled zones (close beyond the gap)
             ExpireZones(_bullZones, close, isBull: true);
