@@ -216,6 +216,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             int    hasvol  = snap.GetFlag(SnapKeys.HasVolumetric) ? 1 : 0;
             int    sw      = (int)snap.Get(SnapKeys.ConfirmedSwings);
 
+            // Structural producer outputs (StructuralLabeler)
+            int    trd     = (int)snap.Get(SnapKeys.SwingTrend);
+            int    chL     = (int)snap.Get(SnapKeys.CHoCHFiredLong);
+            int    chS     = (int)snap.Get(SnapKeys.CHoCHFiredShort);
+            int    bosL    = (int)snap.Get(SnapKeys.BOSFiredLong);
+            int    bosS    = (int)snap.Get(SnapKeys.BOSFiredShort);
+
             // Build labelled detail string — every value named so the CSV is
             // self-documenting when opened in Excel
             string detail = string.Format(
@@ -223,7 +230,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 "DEX={6} BDIV={7} BERDIV={8} | " +
                 "ABS={9:F1} SBULL={10:F0} SBEAR={11:F0} | " +
                 "IZB={12} IZS={13} | " +
-                "HASVOL={14} SW={15}",
+                "HASVOL={14} SW={15} | " +
+                "TRD={16} CH_L={17} CH_S={18} BOS_L={19} BOS_S={20}",
                 regime > 0 ? "+1" : regime < 0 ? "-1" : "0",
                 str,
                 bd, cd, dsl, dsh,
@@ -231,7 +239,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bdiv, berdiv,
                 abs, sbull, sbear,
                 izb, izs,
-                hasvol, sw);
+                hasvol, sw,
+                trd > 0 ? "+1" : trd < 0 ? "-1" : "0",
+                chL, chS, bosL, bosS);
 
             WriteCsvRow(barTime, "FLOW", CurrentBar,
                 "", "", "",

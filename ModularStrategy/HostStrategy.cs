@@ -123,6 +123,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private FootprintResult          _lastFpResult = FootprintResult.Zero;
         private SupportResistanceResult  _lastSrResult = SupportResistanceResult.Empty;
         private ImbalanceZoneRegistry    _imbalZones;
+        private FvgZoneRegistry          _fvgZones;
         private SmartMoneyFlowCloudBOSWaves _smf;
 
         private const int VOLUMETRIC_BAR_INDEX = 6;
@@ -230,6 +231,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _tracker       = new PerSetPerformanceTracker();
                 _srEngine      = new SupportResistanceEngine(SupportResistanceCoreConfig.ForInstrument(inst), _log);
                 _imbalZones    = new ImbalanceZoneRegistry(_log);
+                _fvgZones      = new FvgZoneRegistry();
                 _fpAssembler = new FootprintAssembler();
                 _fpCore      = new FootprintCore(_fpAssembler, FootprintCoreConfig.Default);
                 _fpCore.Initialize(Instrument.MasterInstrument.TickSize, 600, Data.BarsPeriodType.Minute, 1);
@@ -265,6 +267,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 System.Array.Clear(_priceRingBuffer, 0, CVD_DIVERGENCE_PERIOD);
                 _cvdRingIndex = 0; _cvdRingFilled = false;
                 _imbalZones?.OnSessionOpen();
+                _fvgZones?.OnSessionOpen();
                 _orbProcessor?.Reset();
                 _lastFpResult = FootprintResult.Zero; _lastSrResult = SupportResistanceResult.Empty;
                 _entryAdvisor?.OnSessionOpen(); _srEngine?.OnSessionOpen();
@@ -295,6 +298,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (_srEngine != null && snapshot.IsValid && !_srBootstrapped) { _srEngine.Bootstrap(ref snapshot); _srBootstrapped = true; }
             if (_log != null) _log.CurrentBar = CurrentBar;
             if (_imbalZones != null) _imbalZones.Update(snapshot.Primary, in _lastFpResult);
+            if (_fvgZones != null) _fvgZones.Update(snapshot.Primary, snapshot.ATR, CurrentBar);
 
             if (_lastFpResult.IsValid && snapshot.IsValid)
                 _divTracker.OnBar(_lastFpResult, snapshot.ATR, CurrentBar);
@@ -523,11 +527,35 @@ namespace NinjaTrader.NinjaScript.Strategies
             snapshot.Set(SnapKeys.VolSellVol, _lastFpResult.TotalSellVol);
             snapshot.Set(SnapKeys.VolTrades, _lastFpResult.Trades);
             _imbalZones?.PublishToSnap(ref snapshot);
+            _fvgZones?.PublishToSnap(ref snapshot);
             snapshot.Set(SnapKeys.AbsorptionScore, _lastFpResult.AbsorptionScore);
             snapshot.Set(SnapKeys.StackedImbalanceBull, _lastFpResult.StackedBullRun);
             snapshot.Set(SnapKeys.StackedImbalanceBear, _lastFpResult.StackedBearRun);
             snapshot.Set(SnapKeys.HasBullStack, _lastFpResult.HasBullStack ? 1.0 : 0.0);
             snapshot.Set(SnapKeys.HasBearStack, _lastFpResult.HasBearStack ? 1.0 : 0.0);
+            // Location-aware footprint fields (for consumers that need to 
+            // know WHERE the heavy volume or stacked imbalances occurred,
+            // not just whether they were present)
+            if (_lastFpResult.IsValid)
+            {
+                snapshot.Set(SnapKeys.MaxBidVolPrice, _lastFpResult.MaxBidVolPrice);
+                snapshot.Set(SnapKeys.MaxAskVolPrice, _lastFpResult.MaxAskVolPrice);
+                snapshot.Set(SnapKeys.MaxCombinedVolPrice, _lastFpResult.MaxCombinedVolPrice);
+                snapshot.Set(SnapKeys.BullStackLow, _lastFpResult.BullStackLow);
+                snapshot.Set(SnapKeys.BullStackHigh, _lastFpResult.BullStackHigh);
+                snapshot.Set(SnapKeys.BearStackLow, _lastFpResult.BearStackLow);
+                snapshot.Set(SnapKeys.BearStackHigh, _lastFpResult.BearStackHigh);
+            }
+            else
+            {
+                snapshot.Set(SnapKeys.MaxBidVolPrice, 0.0);
+                snapshot.Set(SnapKeys.MaxAskVolPrice, 0.0);
+                snapshot.Set(SnapKeys.MaxCombinedVolPrice, 0.0);
+                snapshot.Set(SnapKeys.BullStackLow, 0.0);
+                snapshot.Set(SnapKeys.BullStackHigh, 0.0);
+                snapshot.Set(SnapKeys.BearStackLow, 0.0);
+                snapshot.Set(SnapKeys.BearStackHigh, 0.0);
+            }
             snapshot.Set(SnapKeys.BullDivergence, _divTracker.IsBullDivergenceActive(CurrentBar) ? 1.0 : 0.0);
             snapshot.Set(SnapKeys.BearDivergence, _divTracker.IsBearDivergenceActive(CurrentBar) ? 1.0 : 0.0);
             snapshot.Set(SnapKeys.H1EmaBias, _h1EmaBias);

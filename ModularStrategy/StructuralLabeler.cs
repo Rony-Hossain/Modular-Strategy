@@ -31,6 +31,10 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         private int _chochLongRefBar  = -1; // BarIndex of the swing high that triggered the last bullish CHoCH
         private int _chochShortRefBar = -1; // BarIndex of the swing low  that triggered the last bearish CHoCH
 
+        // ── BOS one-shot tracking (mirror of CHoCH) ──
+        private int _bosLongRefBar  = -1; // BarIndex of the swing high that triggered the last bullish BOS
+        private int _bosShortRefBar = -1; // BarIndex of the swing low  that triggered the last bearish BOS
+
         private struct SwingPoint
         {
             public double Price;
@@ -64,11 +68,11 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             snapshot.Set(SnapKeys.ConfirmedSwings, (double)_totalConfirmedSwings);
             snapshot.Set(SnapKeys.LastHighLabel, (double)_lastHighLabel);
             snapshot.Set(SnapKeys.LastLowLabel, (double)_lastLowLabel);
-            
+
             double trend = DeriveTrend();
             snapshot.Set(SnapKeys.SwingTrend, trend);
 
-            // 4. CHoCH Detection (One-shot per swing break)
+            // 4. CHoCH Detection (One-shot per swing break — trend REVERSAL)
             if (trend == -1.0) // Bearish trend (LH + LL)
             {
                 if (_highs.Count > 0)
@@ -93,6 +97,32 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                     }
                 }
             }
+
+            // 5. BOS Detection (One-shot per swing break — trend CONTINUATION)
+            if (trend == 1.0) // Bullish trend — break of swing high = continuation BOS
+            {
+                if (_highs.Count > 0)
+                {
+                    var refHigh = _highs[_highs.Count - 1];
+                    if (price.Close > refHigh.Price && refHigh.BarIndex != _bosLongRefBar)
+                    {
+                        snapshot.Set(SnapKeys.BOSFiredLong, 1.0);
+                        _bosLongRefBar = refHigh.BarIndex;
+                    }
+                }
+            }
+            else if (trend == -1.0) // Bearish trend — break of swing low = continuation BOS
+            {
+                if (_lows.Count > 0)
+                {
+                    var refLow = _lows[_lows.Count - 1];
+                    if (price.Close < refLow.Price && refLow.BarIndex != _bosShortRefBar)
+                    {
+                        snapshot.Set(SnapKeys.BOSFiredShort, 1.0);
+                        _bosShortRefBar = refLow.BarIndex;
+                    }
+                }
+            }
         }
 
         private bool IsSwingHigh(double[] highs)
@@ -111,41 +141,12 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
         private void ProcessNewHigh(double price, int barIdx)
         {
-            SwingLabel label = (_highs.Count > 0) 
+            SwingLabel label = (_highs.Count > 0)
                 ? (price > _highs[_highs.Count - 1].Price ? SwingLabel.HH : SwingLabel.LH)
                 : SwingLabel.HH;
 
             AddSwing(_highs, price, barIdx, label);
             _lastHighLabel = label;
-            _totalConfirmedSwings++;
-        }
-
-        private void ProcessNewLow(double price, int barIdx)
-        {
-            SwingLabel label = (_lows.Count > 0)
-                ? (price < _lows[_lows.Count - 1].Price ? SwingLabel.LL : SwingLabel.HL)
-                : SwingLabel.LL;
-
-            AddSwing(_lows, price, barIdx, label);
-            _lastLowLabel = label;
-            _totalConfirmedSwings++;
-        }
-
-        private void AddSwing(List<SwingPoint> list, double price, int barIdx, SwingLabel label)
-        {
-            if (list.Count >= MAX_SWINGS) list.RemoveAt(0);
-            list.Add(new SwingPoint { Price = price, BarIndex = barIdx, Label = label });
-        }
-
-        private double DeriveTrend()
-        {
-            if (_lastHighLabel == SwingLabel.HH && _lastLowLabel == SwingLabel.HL) return 1.0;
-            if (_lastHighLabel == SwingLabel.LH && _lastLowLabel == SwingLabel.LL) return -1.0;
-            return 0.0;
-        }
-    }
-}
-ighLabel = label;
             _totalConfirmedSwings++;
         }
 
