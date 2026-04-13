@@ -126,60 +126,53 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             // =============================================================
-            // LAYER C — OrderFlow conviction (0–30)
+            // LAYER C — OrderFlow conviction (0–22 cap)
             // =============================================================
-            bool hasVol = snap.GetFlag(SnapKeys.HasVolumetric);
+            // 
+            // PREVIOUS BUG (FIX #28 was incorrect):
+            // FIX #28 emptied the volumetric path under the assumption that 
+            // FootprintEntryAdvisor would take over Layer C scoring. In fact:
+            //   1. Advisor's SupportScore output is discarded by HostStrategy
+            //      (only its Multiplier is used)
+            //   2. Advisor is bypassed entirely for ORB candidates
+            // Result: ORB signals running with volumetric data had Layer C = 0.
+            // 
+            // CONSERVATIVE FIX:
+            // Use the existing fallback proxies for ALL candidates regardless 
+            // of hasVol. Max possible: ~22 pts. The original Layer C constants 
+            // (LAYER_C_DIVERGENCE=15, etc., lines 47-51) remain defined but 
+            // unused — they were untested weights and we won't wire them 
+            // until forward-return data validates them.
 
-            if (hasVol)
+            // BarDelta from DataFeed (always populated)
+            double bd = snap.Get(SnapKeys.BarDelta);
+            if (isLong  && bd > 0) layerC += 7;
+            if (!isLong && bd < 0) layerC += 7;
+
+            // SMF Regime agreement
+            int regime = (int)snap.Get(SnapKeys.Regime);
+            if ((isLong && regime > 0) || (!isLong && regime < 0)) layerC += 6;
+
+            // VWAP side
+            if (snap.VWAP > 0)
             {
-                // ── LAYER C: Footprint Centralization ──────────────────────────
-                // FIX (#28): Layer C footprint scoring is now handled EXCLUSIVELY
-                // by the FootprintEntryAdvisor to avoid double-counting. 
-                // This block is now a passthrough for volumetric mode.
-                // Fallback path below still uses proxies when Volumetric is off.
-            }
-            else
-            {
-                // These are structurally weaker signals but always present.
-                // Max possible here is ~22 vs 30 with full Volumetric — reflects
-                // reduced conviction when real order flow data is unavailable.
-
-                // BarDelta from DataFeed (always populated, even without Volumetric)
-                // Positive = buyers were net aggressive this bar, negative = sellers.
-                double bd = snap.Get(SnapKeys.BarDelta);
-                if (isLong  && bd > 0) layerC += 7;   // directional bar pressure
-                if (!isLong && bd < 0) layerC += 7;
-
-                // SMF Regime agreement — money flow confirms direction
-                // Already used in LayerA penalty, but the raw regime is also the
-                // strongest always-available conviction signal. Not double-counted
-                // because LayerA scores EMA bias, not the regime flag itself.
-                int regime = (int)snap.Get(SnapKeys.Regime);
-                if ((isLong && regime > 0) || (!isLong && regime < 0)) layerC += 6;
-
-                // VWAP side — price above VWAP = buyers in control, below = sellers
-                // Strongest price-only conviction proxy for intraday
-                if (snap.VWAP > 0)
-                {
-                    bool aboveVwap = p.Close > snap.VWAP;
-                    if ((isLong && aboveVwap) || (!isLong && !aboveVwap)) layerC += 5;
-                }
-
-                // Higher1 (15-min) bar direction — momentum proxy
-                // A 15-min bar closing higher than prior = buyers dominant on that TF
-                if (snap.Higher1.Closes != null && snap.Higher1.Closes.Length >= 2)
-                {
-                    bool h1Rising = snap.Higher1.Close > snap.Higher1.Closes[1];
-                    if ((isLong && h1Rising) || (!isLong && !h1Rising)) layerC += 4;
-                }
-
-                // SMF NonConfirmation veto — when SMF explicitly flags flow disagrees
-                // Only meaningful veto signal available without Volumetric
-                if (isLong  && snap.GetFlag(SnapKeys.NonConfLong))  isVetoed = true;
-                if (!isLong && snap.GetFlag(SnapKeys.NonConfShort)) isVetoed = true;
+                bool aboveVwap = p.Close > snap.VWAP;
+                if ((isLong && aboveVwap) || (!isLong && !aboveVwap)) layerC += 5;
             }
 
-            layerC = Math.Min(layerC, 30);  // hard cap applies to both paths
+            // Higher1 (15-min) bar direction
+            if (snap.Higher1.Closes != null && snap.Higher1.Closes.Length >= 2)
+            {
+                bool h1Rising = snap.Higher1.Close > snap.Higher1.Closes[1];
+                if ((isLong && h1Rising) || (!isLong && !h1Rising)) layerC += 4;
+            }
+
+            // SMF NonConfirmation veto
+            if (isLong  && snap.GetFlag(SnapKeys.NonConfLong))  isVetoed = true;
+            if (!isLong && snap.GetFlag(SnapKeys.NonConfShort)) isVetoed = true;
+
+            layerC = Math.Min(layerC, 30);  // hard cap retained for safety, 
+                                            // though new max is ~22
 
             // =============================================================
             // LAYER D — Price action structure on execution TF (0–15)
@@ -287,15 +280,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             sb.Append(" B:");
             sb.Append(DescribeSRLayerB(isLong, in sr, layerB));
 
-            // LayerC reasons
+            // LayerC reasons — proxy signals (same path for all candidates 
+            // after FIX #28 reversal)
             sb.Append(" C:");
             if (layerC == 0) { sb.Append("none"); }
-            else if (hasVol)
-            {
-                // Volumetric mode: Layer C is now a passthrough for diagnostics.
-                // Actual scoring is centralized in FootprintEntryAdvisor.
-                sb.Append("vol+");
-            }
             else
             {
                 double bd2 = snap.Get(SnapKeys.BarDelta);
