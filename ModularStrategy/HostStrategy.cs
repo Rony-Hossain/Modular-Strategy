@@ -124,6 +124,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private SupportResistanceResult  _lastSrResult = SupportResistanceResult.Empty;
         private ImbalanceZoneRegistry    _imbalZones;
         private FvgZoneRegistry          _fvgZones;
+        private ObZoneRegistry           _obZones;
         private SmartMoneyFlowCloudBOSWaves _smf;
 
         private const int VOLUMETRIC_BAR_INDEX = 6;
@@ -232,6 +233,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _srEngine      = new SupportResistanceEngine(SupportResistanceCoreConfig.ForInstrument(inst), _log);
                 _imbalZones    = new ImbalanceZoneRegistry(_log);
                 _fvgZones      = new FvgZoneRegistry();
+                _obZones       = new ObZoneRegistry();
                 _fpAssembler = new FootprintAssembler();
                 _fpCore      = new FootprintCore(_fpAssembler, FootprintCoreConfig.Default);
                 _fpCore.Initialize(Instrument.MasterInstrument.TickSize, 600, Data.BarsPeriodType.Minute, 1);
@@ -268,6 +270,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _cvdRingIndex = 0; _cvdRingFilled = false;
                 _imbalZones?.OnSessionOpen();
                 _fvgZones?.OnSessionOpen();
+                _obZones?.OnSessionOpen();
                 _orbProcessor?.Reset();
                 _lastFpResult = FootprintResult.Zero; _lastSrResult = SupportResistanceResult.Empty;
                 _entryAdvisor?.OnSessionOpen(); _srEngine?.OnSessionOpen();
@@ -305,6 +308,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if (snapshot.IsValid)
                 _structLabeler.Update(ref snapshot, snapshot.Primary, CurrentBar);
+
+            if (_obZones != null && snapshot.IsValid)
+                _obZones.Update(ref snapshot, snapshot.Primary, CurrentBar);
 
             OnPopulateIndicatorBag(ref snapshot);
             _log?.BarContext_Tick(snapshot, CurrentBar);
@@ -447,13 +453,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
         }
 
-        protected override void OnExecutionUpdate(Execution execution, string executionId, double price, int quantity, MarketPosition marketPosition, string orderId, DateTime time)
+        protected override void OnExecutionUpdate(Execution execution, string executionId, double price, int quantity, MarketPosition pos, string orderId, DateTime time)
         {
             // FIX (#N13): Use _lastSignalClosed if _activeSignal was already nulled by async reset
             SignalObject sig = _activeSignal ?? _lastSignalClosed;
             if (sig == null) return;
 
-            if (marketPosition == MarketPosition.Flat)
+            if (pos == MarketPosition.Flat)
             {
                 double pnl = 0.0;
                 int tradeCount = SystemPerformance.AllTrades.Count;
@@ -528,6 +534,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             snapshot.Set(SnapKeys.VolTrades, _lastFpResult.Trades);
             _imbalZones?.PublishToSnap(ref snapshot);
             _fvgZones?.PublishToSnap(ref snapshot);
+            _obZones?.PublishToSnap(ref snapshot);
             snapshot.Set(SnapKeys.AbsorptionScore, _lastFpResult.AbsorptionScore);
             snapshot.Set(SnapKeys.StackedImbalanceBull, _lastFpResult.StackedBullRun);
             snapshot.Set(SnapKeys.StackedImbalanceBear, _lastFpResult.StackedBearRun);
@@ -605,7 +612,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // new ConditionSets.FailedAuction(), 
                 // new ConditionSets.EMA_Cross(), 
                 // new ConditionSets.ADX_Trend(), 
-                new ConditionSets.ORB_Classic(),
+                new ConditionSets.ORB_Classic(_log),
                 new ConditionSets.ORB_Measure(_log)
 				); 
         }

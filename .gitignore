@@ -1,0 +1,22 @@
+# User requested ignores
+.claude/
+.claude-flow/
+backtest/
+*.csv
+CLAUDE.md
+.mcp.json
+
+# Common build and binary directories
+bin/
+obj/
+*.exe
+*.dll
+*.pdb
+
+# Visual Studio / IDE related
+.vs/
+*.user
+*.suo
+*.sln.docstates
+.idea/
+.vscode/

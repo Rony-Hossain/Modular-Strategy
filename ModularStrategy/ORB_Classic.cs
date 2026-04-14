@@ -1,119 +1,69 @@
 #region Using declarations
 using System;
-using MathLogic;
+using NinjaTrader.NinjaScript.Strategies;
 using MathLogic.Strategy;
-using MarketSnapshot = MathLogic.Strategy.MarketSnapshot;
 #endregion
 
-namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
+namespace NinjaTrader.NinjaScript.Strategies
 {
-    /// <summary>
-    /// ORB_CLASSIC — Institutional Value-Based ORB (Production Rewrite)
-    /// 
-    /// Logic:
-    /// 1. Wait for valid levels (ORBComplete, POC/VAH/VAL > 0).
-    /// 2. First side to break defines session bias (_firstBreakout).
-    /// 3. Touch detection: Range overlap with [POC-buffer, VAH+buffer] (Long) or [VAL-buffer, POC+buffer] (Short).
-    /// 4. Delta Confirmation: Long (barDelta > 0), Short (barDelta < 0).
-    /// 5. Invalidation: Reset bias if price closes beyond the opposite side of the OR.
-    /// 6. Risk: Stops max(100 ticks, 1x ATR), Targets 1R and 2R.
-    /// </summary>
-    public class ORB_Classic : IConditionSet
+    public class ORB_Classic : SMCBase
     {
-        public string SetId => "ORB_Value_v2";
-
-        private double _tickSize;
-        private double _tickValue;
-
-        // Session State
+        private readonly StrategyLogger _log;
+        private readonly double _tickSize;
+        private double _firstOrbHigh;
+        private double _firstOrbLow;
+        private double _firstOrbPoc;
         private SignalDirection _firstBreakout = SignalDirection.None;
-        private int             _lastFillBar   = -1;
-        private const int       REENTRY_COOLDOWN = 5;
 
-        // ── Diagnostics ──
-        private string _lastBailReason = "";
-        public string LastDiagnostic => _lastBailReason;
-
-        public void Initialise(double tickSize, double tickValue)
+        public ORB_Classic(StrategyHost host, StrategyLogger log) : base(host)
         {
-            _tickSize  = tickSize;
-            _tickValue = tickValue;
+            SetId = "ORB_Value_v2";
+            _log = log;
+            _tickSize = host.TickSize;
         }
 
-        public void OnSessionOpen(MarketSnapshot snapshot)
+        public override void OnSessionOpen(MarketSnapshot snapshot)
         {
+            base.OnSessionOpen(snapshot);
+            _firstOrbHigh = 0;
+            _firstOrbLow = 0;
+            _firstOrbPoc = 0;
             _firstBreakout = SignalDirection.None;
-            _lastFillBar   = -1;
-            _lastBailReason = "session_open";
         }
 
-        public void OnFill(SignalObject signal, double fillPrice)
+        public override RawDecision Evaluate(MarketSnapshot snapshot)
         {
-            if (signal.ConditionSetId == SetId)
-                _lastFillBar = signal.BarIndex;
-        }
-
-        public void OnClose(SignalObject signal, double exitPrice, double pnl) { }
-
-        public RawDecision Evaluate(MarketSnapshot snapshot)
-        {
-            if (!snapshot.IsValid)                  { _lastBailReason = "snapshot_invalid"; return RawDecision.None; }
-            if (!snapshot.ORBComplete)              { _lastBailReason = "orb_not_complete"; return RawDecision.None; }
+            if (!snapshot.ORBComplete) return RawDecision.None;
 
             var p = snapshot.Primary;
-            double orbPoc = snapshot.Get(SnapKeys.ORBPoc);
-            double orbVah = snapshot.Get(SnapKeys.ORBVaHigh);
-            double orbVal = snapshot.Get(SnapKeys.ORBVaLow);
-            
-            if (orbPoc <= 0 || orbVah <= 0 || orbVal <= 0)
-            { 
-                _lastBailReason = $"levels_zero (POC={orbPoc:F2})"; 
-                return RawDecision.None; 
-            }
+            if (p.Session != SessionPhase.EarlySession && p.Session != SessionPhase.MidSession)
+                return RawDecision.None;
 
-            double atr = snapshot.ATR;
-            if (atr <= 0) { _lastBailReason = "atr_zero"; return RawDecision.None; }
-            double buffer = 0.25 * atr;
-
-            // First Breakout Wins
-            if (_firstBreakout == SignalDirection.None)
+            if (_firstOrbHigh == 0)
             {
-                if      (p.Close > snapshot.ORBHigh) { _firstBreakout = SignalDirection.Long;  }
-                else if (p.Close < snapshot.ORBLow)  { _firstBreakout = SignalDirection.Short; }
+                _firstOrbHigh = snapshot.ORBVaHigh;
+                _firstOrbLow  = snapshot.ORBVaLow;
+                _firstOrbPoc  = snapshot.ORBPoc;
             }
 
             if (_firstBreakout == SignalDirection.None)
-            { 
-                _lastBailReason = $"no_breakout_yet ORBH={snapshot.ORBHigh:F2} ORBL={snapshot.ORBLow:F2}"; 
-                return RawDecision.None; 
-            }
-
-            // Invalidation: breakout thesis is dead if price closes beyond the opposite side of the OR
-            if (_firstBreakout == SignalDirection.Long && p.Close < snapshot.ORBLow)
             {
-                _firstBreakout = SignalDirection.None;
-                _lastBailReason = $"INVALIDATED_long C={p.Close:F2} < ORBLow={snapshot.ORBLow:F2}";
-                return RawDecision.None;
-            }
-            if (_firstBreakout == SignalDirection.Short && p.Close > snapshot.ORBHigh)
-            {
-                _firstBreakout = SignalDirection.None;
-                _lastBailReason = $"INVALIDATED_short C={p.Close:F2} > ORBHigh={snapshot.ORBHigh:F2}";
+                if (p.High > _firstOrbHigh) _firstBreakout = SignalDirection.Long;
+                if (p.Low < _firstOrbLow)   _firstBreakout = SignalDirection.Short;
                 return RawDecision.None;
             }
 
-            if (_lastFillBar >= 0 && p.CurrentBar - _lastFillBar < REENTRY_COOLDOWN)
-            { 
-                _lastBailReason = "cooldown"; 
-                return RawDecision.None; 
-            }
-
+            double orbVal = _firstOrbLow;
+            double orbPoc = _firstOrbPoc;
+            double orbVeh = _firstOrbHigh;
+            double buffer = 5.0 * _tickSize;
+            double atr    = snapshot.ATR;
             double barDelta = snapshot.Get(SnapKeys.BarDelta);
 
             if (_firstBreakout == SignalDirection.Long)
             {
                 double bandLo = orbPoc - buffer;
-                double bandHi = orbVah + buffer;
+                double bandHi = orbVal + buffer;
                 bool inReloadZone = p.Low <= bandHi && p.High >= bandLo;
 
                 if (!inReloadZone)
@@ -130,12 +80,28 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                 double stopDistance = Math.Max(100.0 * _tickSize, 1.0 * atr);
                 double entryPrice   = p.Close;
 
+                // Generate SignalId at touch time — flows through SignalGenerator unchanged
+                string signalId = string.Format("{0}:{1:yyyyMMdd}:{2}",
+                    SetId, p.Time, p.CurrentBar);
+
+                // Log the qualifying touch — fires for every touch ORB considered, 
+                // including ones the downstream pipeline may later reject. The unmatched 
+                // TOUCH rows in post-processing tell us what got dropped.
+                _log?.LogTouchEvent(
+                    signalId, SetId, SignalDirection.Long,
+                    entryPrice, bandLo, bandHi,
+                    entryPrice - stopDistance,            // stop
+                    entryPrice + stopDistance,            // target (T1)
+                    "ORB_RELOAD",
+                    p.Time, snapshot);
+
                 _lastBailReason = "FIRED_LONG";
                 return new RawDecision
                 {
                     Direction    = SignalDirection.Long,
                     Source       = SignalSource.ORB_Retest,
                     ConditionSetId = SetId,
+                    SignalId     = signalId,
                     EntryPrice   = entryPrice,
                     StopPrice    = entryPrice - stopDistance,
                     TargetPrice  = entryPrice + stopDistance,
@@ -166,12 +132,27 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                 double stopDistance = Math.Max(100.0 * _tickSize, 1.0 * atr);
                 double entryPrice   = p.Close;
 
+                // Generate SignalId at touch time — flows through SignalGenerator unchanged
+                string signalId = string.Format("{0}:{1:yyyyMMdd}:{2}",
+                    SetId, p.Time, p.CurrentBar);
+
+                // Log the qualifying touch — fires for every touch ORB considered, 
+                // including ones the downstream pipeline may later reject.
+                _log?.LogTouchEvent(
+                    signalId, SetId, SignalDirection.Short,
+                    entryPrice, bandLo, bandHi,
+                    entryPrice + stopDistance,            // stop (above for shorts)
+                    entryPrice - stopDistance,            // target (below for shorts)
+                    "ORB_RELOAD",
+                    p.Time, snapshot);
+
                 _lastBailReason = "FIRED_SHORT";
                 return new RawDecision
                 {
                     Direction    = SignalDirection.Short,
                     Source       = SignalSource.ORB_Retest,
                     ConditionSetId = SetId,
+                    SignalId     = signalId,
                     EntryPrice   = entryPrice,
                     StopPrice    = entryPrice + stopDistance,
                     TargetPrice  = entryPrice - stopDistance,
