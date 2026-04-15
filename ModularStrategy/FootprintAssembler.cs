@@ -66,6 +66,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         public double   MaxBidVolPrice;
         public double   MaxCombinedVol;
         public double   MaxCombinedVolPrice;
+
+        public double   TopLevelAskVol;
+        public double   TopLevelBidVol;
+        public double   TopLevelTotalVol;
+        public double   BottomLevelAskVol;
+        public double   BottomLevelBidVol;
+        public double   BottomLevelTotalVol;
     }
 
     public enum FootprintAssemblyMode
@@ -747,6 +754,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _delta[level]  = delta;
                 _total[level]  = total;
             }
+
+            if (levelCount > 0)
+            {
+                bar.BottomLevelAskVol   = _ask[0];
+                bar.BottomLevelBidVol   = _bid[0];
+                bar.BottomLevelTotalVol = _total[0];
+
+                int topIdx = levelCount - 1;
+                bar.TopLevelAskVol   = _ask[topIdx];
+                bar.TopLevelBidVol   = _bid[topIdx];
+                bar.TopLevelTotalVol = _total[topIdx];
+            }
         }
 
         private FootprintBar BuildZeroBar()
@@ -767,6 +786,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 LevelCount         = 0,
                 FeederBarsUsed     = 0,
                 ExpectedFeederBars = 0,
+
+                TopLevelAskVol     = 0.0,
+                TopLevelBidVol     = 0.0,
+                TopLevelTotalVol   = 0.0,
+                BottomLevelAskVol  = 0.0,
+                BottomLevelBidVol  = 0.0,
+                BottomLevelTotalVol = 0.0,
             };
         }
 

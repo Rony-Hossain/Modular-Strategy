@@ -269,6 +269,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         public double MaxCombinedVol { get; }
         public double MaxCombinedVolPrice { get; }
 
+        public double TopLevelAskVol { get; }
+        public double TopLevelBidVol { get; }
+        public double TopLevelTotalVol { get; }
+        public double BottomLevelAskVol { get; }
+        public double BottomLevelBidVol { get; }
+        public double BottomLevelTotalVol { get; }
+
         // CHECKLIST J — FootprintCore-owned derived metrics.
         public double AbsorptionScore { get; }
         public int StackedBullRun { get; }
@@ -311,6 +318,12 @@ namespace NinjaTrader.NinjaScript.Strategies
             double maxBidVolPrice,
             double maxCombinedVol,
             double maxCombinedVolPrice,
+            double topLevelAskVol,
+            double topLevelBidVol,
+            double topLevelTotalVol,
+            double bottomLevelAskVol,
+            double bottomLevelBidVol,
+            double bottomLevelTotalVol,
             double absorptionScore,
             int stackedBullRun,
             int stackedBearRun,
@@ -351,6 +364,12 @@ namespace NinjaTrader.NinjaScript.Strategies
             MaxBidVolPrice = maxBidVolPrice;
             MaxCombinedVol = maxCombinedVol;
             MaxCombinedVolPrice = maxCombinedVolPrice;
+            TopLevelAskVol = topLevelAskVol;
+            TopLevelBidVol = topLevelBidVol;
+            TopLevelTotalVol = topLevelTotalVol;
+            BottomLevelAskVol = bottomLevelAskVol;
+            BottomLevelBidVol = bottomLevelBidVol;
+            BottomLevelTotalVol = bottomLevelTotalVol;
             AbsorptionScore = absorptionScore;
             StackedBullRun = stackedBullRun;
             StackedBearRun = stackedBearRun;
@@ -363,45 +382,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         public static readonly FootprintResult Zero = new FootprintResult(
-            false,
-            default(DateTime),
-            default(DateTime),
-            0,
-            0,
-            FootprintAssemblyMode.CompletedPrimaryBarOnly,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0,
-            0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            false);
+            false, default(DateTime), default(DateTime), 0, 0, FootprintAssemblyMode.CompletedPrimaryBarOnly,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0, 0.0, 0.0, 0.0, 0.0, false, false);
     }
 
     /// <summary>
@@ -636,45 +619,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private static FootprintResult BuildZeroResult(FootprintAssemblyMode mode)
         {
             return new FootprintResult(
-                false,
-                default(DateTime),
-                default(DateTime),
-                0,
-                0,
-                mode,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0,
-                0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                false,
-                false);
+                false, default(DateTime), default(DateTime), 0, 0, mode,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0, 0.0, 0.0, 0.0, 0.0, false, false);
         }
 
         /// <summary>
@@ -718,6 +665,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bar.MaxBidVolPrice,
                 bar.MaxCombinedVol,
                 bar.MaxCombinedVolPrice,
+                bar.TopLevelAskVol,
+                bar.TopLevelBidVol,
+                bar.TopLevelTotalVol,
+                bar.BottomLevelAskVol,
+                bar.BottomLevelBidVol,
+                bar.BottomLevelTotalVol,
                 0.0,
                 0,
                 0,
@@ -937,6 +890,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 baseResult.MaxBidVolPrice,
                 baseResult.MaxCombinedVol,
                 baseResult.MaxCombinedVolPrice,
+                baseResult.TopLevelAskVol,
+                baseResult.TopLevelBidVol,
+                baseResult.TopLevelTotalVol,
+                baseResult.BottomLevelAskVol,
+                baseResult.BottomLevelBidVol,
+                baseResult.BottomLevelTotalVol,
                 absorptionScore,
                 stackedBullRun,
                 stackedBearRun,
