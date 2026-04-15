@@ -171,6 +171,44 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (isLong  && snap.GetFlag(SnapKeys.NonConfLong))  isVetoed = true;
             if (!isLong && snap.GetFlag(SnapKeys.NonConfShort)) isVetoed = true;
 
+            // =============================================================
+            // PHASE 1.1 — ORDER-FLOW DIRECTIONAL VETOS
+            // =============================================================
+            // Blocks entries that match the losing-trade signatures from the
+            // 6-week backtest (see specs/phase1_1_long_side_vetos.md).
+            // Each rule is symmetric: long-side rule vetos longs, short-side
+            // rule vetos shorts.
+            //
+            // Thresholds chosen conservatively from the 15-trade long sample:
+            //   CUMDELTA_EXHAUSTED = 2500  (losers avg 2889, winners avg 841)
+            //   WEAK_STACK_COUNT   = 3     (below full MinStackedLevels=3)
+            //
+            // CvdAccel (Phase 1.2) will replace the static CUMDELTA_EXHAUSTED
+            // threshold with a derivative-based exhaustion check.
+
+            const double CUMDELTA_EXHAUSTED = 2500.0;
+            const double WEAK_STACK_COUNT   = 3.0;
+
+            // Rule 1 — Divergence opposite the trade direction.
+            // Long with bearish divergence = buying into weakness the tape already sees.
+            if (isLong  && snap.GetFlag(SnapKeys.BearDivergence)) { isVetoed = true; }
+            if (!isLong && snap.GetFlag(SnapKeys.BullDivergence)) { isVetoed = true; }
+
+            // Rule 2 — Opposing stacked-imbalance zone at price (from ImbalanceZoneRegistry).
+            // Long into a live bearish zone = buying directly into a seller wall.
+            if (isLong  && snap.GetFlag(SnapKeys.ImbalZoneAtBear)) { isVetoed = true; }
+            if (!isLong && snap.GetFlag(SnapKeys.ImbalZoneAtBull)) { isVetoed = true; }
+
+            // Rule 3 — Exhausted cumulative delta without fresh same-side stack support.
+            // Long when CD is already far above session mean AND no bull stack this bar
+            // = chasing a move that's already stretched.
+            double cd        = snap.Get(SnapKeys.CumDelta);
+            double sbullCnt  = snap.Get(SnapKeys.StackedImbalanceBull);
+            double sbearCnt  = snap.Get(SnapKeys.StackedImbalanceBear);
+
+            if (isLong  && cd >  CUMDELTA_EXHAUSTED && sbullCnt < WEAK_STACK_COUNT) { isVetoed = true; }
+            if (!isLong && cd < -CUMDELTA_EXHAUSTED && sbearCnt < WEAK_STACK_COUNT) { isVetoed = true; }
+
             layerC = Math.Min(layerC, 30);  // hard cap retained for safety, 
                                             // though new max is ~22
 
@@ -296,6 +334,20 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if ((isLong && above) || (!isLong && !above)) sb.Append("vwap+");
                 }
                 if (snap.GetFlag(SnapKeys.NonConfLong) || snap.GetFlag(SnapKeys.NonConfShort)) sb.Append("ncVETO");
+            }
+
+            // Phase 1.1 veto reasons — only appended when a rule fired this evaluation.
+            if (isLong)
+            {
+                if (snap.GetFlag(SnapKeys.BearDivergence))   sb.Append("vBDIV");
+                if (snap.GetFlag(SnapKeys.ImbalZoneAtBear))  sb.Append("vZB");
+                if (cd > CUMDELTA_EXHAUSTED && sbullCnt < WEAK_STACK_COUNT) sb.Append("vEXHL");
+            }
+            else
+            {
+                if (snap.GetFlag(SnapKeys.BullDivergence))   sb.Append("vBULLDIV");
+                if (snap.GetFlag(SnapKeys.ImbalZoneAtBull))  sb.Append("vZU");
+                if (cd < -CUMDELTA_EXHAUSTED && sbearCnt < WEAK_STACK_COUNT) sb.Append("vEXHS");
             }
 
             // LayerD reasons
