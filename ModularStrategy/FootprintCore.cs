@@ -109,6 +109,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         public bool   BearIceberg  { get; }   // cluster at/near bar High
         public double IcebergPrice { get; }   // absorbed price, else 0.0
 
+        // Phase 2.6 — Trapped Traders (2-bar deferred emit)
+        public bool   TrappedLongs  { get; }   // bull-trap at prior high
+        public bool   TrappedShorts { get; }   // bear-trap at prior low
+        public double TrapLevel     { get; }   // absolute price of the trap origin, else 0.0
+
         // Core-Owned Derived Metrics
         public double AbsorptionScore { get; }
         public int StackedBullRun { get; }
@@ -164,6 +169,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             bool bullIceberg,
             bool bearIceberg,
             double icebergPrice,
+            bool trappedLongs,
+            bool trappedShorts,
+            double trapLevel,
             double absorptionScore,
             int stackedBullRun,
             int stackedBearRun,
@@ -217,6 +225,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             BullIceberg = bullIceberg;
             BearIceberg = bearIceberg;
             IcebergPrice = icebergPrice;
+            TrappedLongs = trappedLongs;
+            TrappedShorts = trappedShorts;
+            TrapLevel = trapLevel;
             AbsorptionScore = absorptionScore;
             StackedBullRun = stackedBullRun;
             StackedBearRun = stackedBearRun;
@@ -272,6 +283,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             false,                          // bullIceberg
             false,                          // bearIceberg
             0.0,                            // icebergPrice
+            false,                          // trappedLongs
+            false,                          // trappedShorts
+            0.0,                            // trapLevel
             0.0,                            // absorptionScore
             0,                              // stackedBullRun
             0,                              // stackedBearRun
@@ -290,11 +304,12 @@ namespace NinjaTrader.NinjaScript.Strategies
     /// </summary>
     public sealed class FootprintCore
     {
-        private readonly FootprintAssembler   _assembler;
-        private readonly FootprintCoreConfig  _config;
-        private readonly LevelHistoryTracker _levelHistory;
-        private readonly LevelStat[]          _iceQueryBuf = new LevelStat[2];   // ICE_LOOKBACK_BARS
-        private bool                          _initialized;
+        private readonly FootprintAssembler    _assembler;
+        private readonly FootprintCoreConfig   _config;
+        private readonly LevelHistoryTracker  _levelHistory;
+        private readonly TrappedTraderDetector _trappedTrader = new TrappedTraderDetector();
+        private readonly LevelStat[]           _iceQueryBuf = new LevelStat[2];   // ICE_LOOKBACK_BARS
+        private bool                           _initialized;
 
         public FootprintCore(FootprintAssembler assembler, FootprintCoreConfig config)
         {
@@ -442,6 +457,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 false,                          // bullIceberg
                 false,                          // bearIceberg
                 0.0,                            // icebergPrice
+                false,                          // trappedLongs
+                false,                          // trappedShorts
+                0.0,                            // trapLevel
                 0.0,                            // absorptionScore
                 0,                              // stackedBullRun
                 0,                              // stackedBearRun
@@ -500,6 +518,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 false,                          // bullIceberg
                 false,                          // bearIceberg
                 0.0,                            // icebergPrice
+                false,                          // trappedLongs
+                false,                          // trappedShorts
+                0.0,                            // trapLevel
                 0.0,                            // absorptionScore
                 0,                              // stackedBullRun
                 0,                              // stackedBearRun
@@ -632,6 +653,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
             }
 
+            // Phase 2.6 — Trapped Traders
+            bool   trappedLongs  = false;
+            bool   trappedShorts = false;
+            double trapLevel     = 0.0;
+            _trappedTrader.Evaluate(in baseResult, out trappedLongs, out trappedShorts, out trapLevel);
+
             return new FootprintResult(
                 true,                          // isValid
                 baseResult.PrimaryBarStartTime, // primaryBarStartTime
@@ -676,6 +703,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bullIceberg,                    // bullIceberg
                 bearIceberg,                    // bearIceberg
                 iceAbsPrice,                    // icebergPrice
+                trappedLongs,                   // trappedLongs
+                trappedShorts,                  // trappedShorts
+                trapLevel,                      // trapLevel
                 absorptionScore,                // absorptionScore
                 stackedBullRun,                 // stackedBullRun
                 stackedBearRun,                 // stackedBearRun
