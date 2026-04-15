@@ -104,6 +104,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         public bool BullExhaustion { get; }
         public bool BearExhaustion { get; }
 
+        // Phase 2.5 — Iceberg (repeated absorption at same price across recent bars)
+        public bool   BullIceberg  { get; }   // cluster at/near bar Low
+        public bool   BearIceberg  { get; }   // cluster at/near bar High
+        public double IcebergPrice { get; }   // absorbed price, else 0.0
+
         // Core-Owned Derived Metrics
         public double AbsorptionScore { get; }
         public int StackedBullRun { get; }
@@ -156,6 +161,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             bool unfinishedBottom,
             bool bullExhaustion,
             bool bearExhaustion,
+            bool bullIceberg,
+            bool bearIceberg,
+            double icebergPrice,
             double absorptionScore,
             int stackedBullRun,
             int stackedBearRun,
@@ -206,6 +214,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             UnfinishedBottom = unfinishedBottom;
             BullExhaustion = bullExhaustion;
             BearExhaustion = bearExhaustion;
+            BullIceberg = bullIceberg;
+            BearIceberg = bearIceberg;
+            IcebergPrice = icebergPrice;
             AbsorptionScore = absorptionScore;
             StackedBullRun = stackedBullRun;
             StackedBearRun = stackedBearRun;
@@ -258,6 +269,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             false,                          // unfinishedBottom
             false,                          // bullExhaustion
             false,                          // bearExhaustion
+            false,                          // bullIceberg
+            false,                          // bearIceberg
+            0.0,                            // icebergPrice
             0.0,                            // absorptionScore
             0,                              // stackedBullRun
             0,                              // stackedBearRun
@@ -279,6 +293,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private readonly FootprintAssembler   _assembler;
         private readonly FootprintCoreConfig  _config;
         private readonly LevelHistoryTracker _levelHistory;
+        private readonly LevelStat[]          _iceQueryBuf = new LevelStat[2];   // ICE_LOOKBACK_BARS
         private bool                          _initialized;
 
         public FootprintCore(FootprintAssembler assembler, FootprintCoreConfig config)
@@ -336,7 +351,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return false;
             }
 
-            result = ComputeFromBar(in bar, mode, in _config);
+            result = ComputeFromBar(in bar, mode);
 
             if (result.IsValid)
             {
@@ -351,27 +366,26 @@ namespace NinjaTrader.NinjaScript.Strategies
             return result.IsValid;
         }
 
-        private static FootprintResult ComputeFromBar(
+        private FootprintResult ComputeFromBar(
             in FootprintBar        bar,
-            FootprintAssemblyMode  mode,
-            in FootprintCoreConfig config)
+            FootprintAssemblyMode  mode)
         {
             if (!ValidateBar(in bar)) return BuildZeroResult(mode);
 
             FootprintResult baseResult = CopyScalarFacts(in bar, mode);
-            double absorptionScore = ComputeAbsorptionScore(in bar, config.AbsorptionRatio);
+            double absorptionScore = ComputeAbsorptionScore(in bar, _config.AbsorptionRatio);
 
             int stackedBullRun, stackedBearRun;
             double bullLow, bullHigh, bearLow, bearHigh;
 
             ComputeStackedDiagonalRuns(
-                in bar, config.DiagonalImbalanceRatio,
+                in bar, _config.DiagonalImbalanceRatio,
                 out stackedBullRun, out stackedBearRun,
                 out bullLow, out bullHigh, out bearLow, out bearHigh);
 
             return FinalizeResult(
                 in baseResult, absorptionScore, stackedBullRun, stackedBearRun,
-                bullLow, bullHigh, bearLow, bearHigh, config.MinStackedLevels);
+                bullLow, bullHigh, bearLow, bearHigh, _config.MinStackedLevels);
         }
 
         private static bool ValidateBar(in FootprintBar bar)
@@ -425,6 +439,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 false,                          // unfinishedBottom
                 false,                          // bullExhaustion
                 false,                          // bearExhaustion
+                false,                          // bullIceberg
+                false,                          // bearIceberg
+                0.0,                            // icebergPrice
                 0.0,                            // absorptionScore
                 0,                              // stackedBullRun
                 0,                              // stackedBearRun
@@ -480,6 +497,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 false,                          // unfinishedBottom
                 false,                          // bullExhaustion
                 false,                          // bearExhaustion
+                false,                          // bullIceberg
+                false,                          // bearIceberg
+                0.0,                            // icebergPrice
                 0.0,                            // absorptionScore
                 0,                              // stackedBullRun
                 0,                              // stackedBearRun
@@ -541,7 +561,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
         }
 
-        private static FootprintResult FinalizeResult(
+        private FootprintResult FinalizeResult(
             in FootprintResult baseResult, double absorptionScore,
             int stackedBullRun, int stackedBearRun,
             double bullStackLow, double bullStackHigh,
@@ -573,6 +593,44 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             bool bearExhaustion = exhaustionCondMet
                 && baseResult.BottomLevelTotalVol < LOW_VOL_RATIO * avgLevelVol;
+
+            // Phase 2.5 — Iceberg
+            // Current-bar absorption at the modal-volume price, repeated across prior bars at same price.
+            const double ICE_CURR_ABS_RATIO   = 2.0;   // current-bar: maxCombinedVol >= 2.0 * avgLevelVol
+            const double ICE_PRIOR_FLOOR_RATIO = 1.0;  // prior-bar floor at same price vs current avgLevelVol
+            const int    ICE_MIN_RECURRENCES  = 2;     // >=2 bars in the 3-bar window (current + 2 prior)
+            const int    ICE_LOOKBACK_BARS    = 2;     // prior bars queried
+
+            double iceAbsPrice = 0.0;
+            bool   bullIceberg = false;
+            bool   bearIceberg = false;
+
+            bool currAbsorbed = avgLevelVol > 0.0
+                             && baseResult.MaxCombinedVol >= ICE_CURR_ABS_RATIO * avgLevelVol;
+
+            if (currAbsorbed)
+            {
+                double candidatePrice = baseResult.MaxCombinedVolPrice;
+                double priorFloor     = ICE_PRIOR_FLOOR_RATIO * avgLevelVol;
+
+                int matches = _levelHistory.QueryPrice(candidatePrice, ICE_LOOKBACK_BARS, _iceQueryBuf);
+
+                int hits = 1;  // current bar counts
+                for (int i = 0; i < matches; i++)
+                {
+                    if (_iceQueryBuf[i].TotalVol >= priorFloor)
+                        hits++;
+                }
+
+                if (hits >= ICE_MIN_RECURRENCES)
+                {
+                    iceAbsPrice = candidatePrice;
+                    double halfTick = 0.5 * baseResult.TickSize;
+                    if (Math.Abs(candidatePrice - baseResult.Low)  <= halfTick + 1e-9) bullIceberg = true;
+                    if (Math.Abs(candidatePrice - baseResult.High) <= halfTick + 1e-9) bearIceberg = true;
+                    // Mid-bar iceberg (not touching either extreme): price recorded but no direction fires.
+                }
+            }
 
             return new FootprintResult(
                 true,                          // isValid
@@ -615,6 +673,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 unfinishedBottom,               // unfinishedBottom
                 bullExhaustion,                 // bullExhaustion
                 bearExhaustion,                 // bearExhaustion
+                bullIceberg,                    // bullIceberg
+                bearIceberg,                    // bearIceberg
+                iceAbsPrice,                    // icebergPrice
                 absorptionScore,                // absorptionScore
                 stackedBullRun,                 // stackedBullRun
                 stackedBearRun,                 // stackedBearRun
