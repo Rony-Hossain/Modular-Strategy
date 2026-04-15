@@ -510,6 +510,35 @@ namespace MathLogic
         /// </summary>
         public const string AbsorptionScore = "AbsorptionScore";
 
+        // ── Trapped Traders (Phase 2.6 detector, Phase 2.7 wiring) ───────
+        // Published by HostStrategy.OnPopulateIndicatorBag() each bar.
+        // Requires Volumetric. Values are stable across the 2-bar detector
+        // delay — emit fires exactly on bar B+2.
+
+        /// <summary>
+        /// 1.0 when longs were trapped at a prior-bar high (bull-trap pattern):
+        /// volume cluster at the high, rejection close, no follow-through on the
+        /// next bar. Confirms SHORT signals — trapped-long exit flow extends the
+        /// reversal. Vetoes LONG signals near TrapLevel.
+        /// Zero without Volumetric or when detector is warming up (&lt;2 bars).
+        /// </summary>
+        public const string TrappedLongs = "TrappedLongs";
+
+        /// <summary>
+        /// 1.0 when shorts were trapped at a prior-bar low (bear-trap pattern):
+        /// volume cluster at the low, rejection close, no follow-through on the
+        /// next bar. Confirms LONG signals. Vetoes SHORT signals near TrapLevel.
+        /// Zero without Volumetric or during warm-up.
+        /// </summary>
+        public const string TrappedShorts = "TrappedShorts";
+
+        /// <summary>
+        /// Absolute price of the trap origin — equals the prior-bar high (bull trap)
+        /// or low (bear trap). Zero when neither flag fires.
+        /// Consumers may gate scoring/veto by proximity of current close to this level.
+        /// </summary>
+        public const string TrapLevel = "TrapLevel";
+
         // ── Volumetric Bars keys ─────────────────────────────────────────
         // Populated from AddVolumetric() BarsType. Works in BOTH backtest
         // and live (unlike the GetCurrentAskVolume path which is broken in

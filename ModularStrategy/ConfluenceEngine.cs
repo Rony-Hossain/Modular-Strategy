@@ -49,6 +49,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private const int LAYER_C_ABS_MAX     =  7;  // absorption — graduated below
         private const int LAYER_C_DELTA_EXHST =  8;  // delta exhaustion confirms signal direction
         private const int LAYER_C_IMBAL_ZONE  =  6;  // price at historical imbalance zone
+        private const int LAYER_C_TRAPPED_AGREE = 8;   // trapped flag on opposite side confirms direction
 
         // ── Layer D weights (Price action trigger) ────────────────────────
         private const int LAYER_D_FULL_STRUCT = 12;  // HH+HL or LH+LL confirmed
@@ -167,6 +168,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if ((isLong && h1Rising) || (!isLong && !h1Rising)) layerC += 4;
             }
 
+            // ── Trapped Traders agreement (Phase 2.7) ───────────────────────
+            // Long is confirmed when SHORTS were trapped at a low (their exit flow
+            // extends upward). Short is confirmed when LONGS were trapped at a high.
+            // The flag is already 2-bar-deferred by the detector, so no re-timing here.
+            bool trapLongsFlag  = snap.GetFlag(SnapKeys.TrappedLongs);
+            bool trapShortsFlag = snap.GetFlag(SnapKeys.TrappedShorts);
+
+            if ( isLong && trapShortsFlag) layerC += LAYER_C_TRAPPED_AGREE;
+            if (!isLong && trapLongsFlag ) layerC += LAYER_C_TRAPPED_AGREE;
+
             // SMF NonConfirmation veto
             if (isLong  && snap.GetFlag(SnapKeys.NonConfLong))  isVetoed = true;
             if (!isLong && snap.GetFlag(SnapKeys.NonConfShort)) isVetoed = true;
@@ -208,6 +219,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if (isLong  && cd >  CUMDELTA_EXHAUSTED && sbullCnt < WEAK_STACK_COUNT) { isVetoed = true; }
             if (!isLong && cd < -CUMDELTA_EXHAUSTED && sbearCnt < WEAK_STACK_COUNT) { isVetoed = true; }
+
+            // Phase 2.7 — Trapped Traders opposition veto
+            // Long signal when LONGS are trapped at a high → trapped-long exit flow
+            // will push price DOWN. The signal is trading into forced-seller flow.
+            // Symmetric for shorts.
+            if (isLong  && trapLongsFlag ) { isVetoed = true; }
+            if (!isLong && trapShortsFlag) { isVetoed = true; }
 
             layerC = Math.Min(layerC, 30);  // hard cap retained for safety, 
                                             // though new max is ~22
@@ -333,6 +351,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     bool above = p.Close > snap.VWAP;
                     if ((isLong && above) || (!isLong && !above)) sb.Append("vwap+");
                 }
+                if ((isLong && trapShortsFlag) || (!isLong && trapLongsFlag)) sb.Append("trap+");
                 if (snap.GetFlag(SnapKeys.NonConfLong) || snap.GetFlag(SnapKeys.NonConfShort)) sb.Append("ncVETO");
             }
 
@@ -342,12 +361,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (snap.GetFlag(SnapKeys.BearDivergence))   sb.Append("vBDIV");
                 if (snap.GetFlag(SnapKeys.ImbalZoneAtBear))  sb.Append("vZB");
                 if (cd > CUMDELTA_EXHAUSTED && sbullCnt < WEAK_STACK_COUNT) sb.Append("vEXHL");
+                if (trapLongsFlag) sb.Append("vTRAP");
             }
             else
             {
                 if (snap.GetFlag(SnapKeys.BullDivergence))   sb.Append("vBULLDIV");
                 if (snap.GetFlag(SnapKeys.ImbalZoneAtBull))  sb.Append("vZU");
                 if (cd < -CUMDELTA_EXHAUSTED && sbearCnt < WEAK_STACK_COUNT) sb.Append("vEXHS");
+                if (trapShortsFlag) sb.Append("vTRAP");
             }
 
             // LayerD reasons

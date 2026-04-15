@@ -572,6 +572,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                 snapshot.Set(SnapKeys.BearStackLow, 0.0);
                 snapshot.Set(SnapKeys.BearStackHigh, 0.0);
             }
+
+            // Phase 2.7 — Trapped Traders
+            if (_lastFpResult.IsValid)
+            {
+                snapshot.Set(SnapKeys.TrappedLongs, _lastFpResult.TrappedLongs ? 1.0 : 0.0);
+                snapshot.Set(SnapKeys.TrappedShorts, _lastFpResult.TrappedShorts ? 1.0 : 0.0);
+                snapshot.Set(SnapKeys.TrapLevel, _lastFpResult.TrapLevel);
+            }
+            else
+            {
+                snapshot.Set(SnapKeys.TrappedLongs, 0.0);
+                snapshot.Set(SnapKeys.TrappedShorts, 0.0);
+                snapshot.Set(SnapKeys.TrapLevel, 0.0);
+            }
+
             snapshot.Set(SnapKeys.BullDivergence, _divTracker.IsBullDivergenceActive(CurrentBar) ? 1.0 : 0.0);
             snapshot.Set(SnapKeys.BearDivergence, _divTracker.IsBearDivergenceActive(CurrentBar) ? 1.0 : 0.0);
             snapshot.Set(SnapKeys.H1EmaBias, _h1EmaBias);
