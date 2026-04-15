@@ -16,8 +16,15 @@ namespace NinjaTrader.NinjaScript.Strategies
         public double AbsorptionRatio { get; }
         public double DiagonalImbalanceRatio { get; }
         public int MinStackedLevels { get; }
+        public int LevelHistoryCapacityBars { get; }
+        public int LevelHistoryMaxLevels { get; }
 
-        public FootprintCoreConfig(double absorptionRatio, double diagonalImbalanceRatio, int minStackedLevels)
+        public FootprintCoreConfig(
+            double absorptionRatio, 
+            double diagonalImbalanceRatio, 
+            int minStackedLevels,
+            int levelHistoryCapacityBars,
+            int levelHistoryMaxLevels)
         {
             if (absorptionRatio <= 0.0)
                 throw new ArgumentOutOfRangeException(nameof(absorptionRatio), "absorptionRatio must be > 0.");
@@ -25,13 +32,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                 throw new ArgumentOutOfRangeException(nameof(diagonalImbalanceRatio), "diagonalImbalanceRatio must be > 0.");
             if (minStackedLevels <= 0)
                 throw new ArgumentOutOfRangeException(nameof(minStackedLevels), "minStackedLevels must be > 0.");
+            if (levelHistoryCapacityBars <= 0)
+                throw new ArgumentOutOfRangeException(nameof(levelHistoryCapacityBars), "levelHistoryCapacityBars must be > 0.");
+            if (levelHistoryMaxLevels <= 0)
+                throw new ArgumentOutOfRangeException(nameof(levelHistoryMaxLevels), "levelHistoryMaxLevels must be > 0.");
 
-            AbsorptionRatio        = absorptionRatio;
-            DiagonalImbalanceRatio = diagonalImbalanceRatio;
-            MinStackedLevels       = minStackedLevels;
+            AbsorptionRatio          = absorptionRatio;
+            DiagonalImbalanceRatio   = diagonalImbalanceRatio;
+            MinStackedLevels         = minStackedLevels;
+            LevelHistoryCapacityBars = levelHistoryCapacityBars;
+            LevelHistoryMaxLevels    = levelHistoryMaxLevels;
         }
 
-        public static FootprintCoreConfig Default => new FootprintCoreConfig(2.0, 3.0, 3);
+        public static FootprintCoreConfig Default => new FootprintCoreConfig(2.0, 3.0, 3, 5, 128);
     }
 
     /// <summary>
@@ -263,17 +276,19 @@ namespace NinjaTrader.NinjaScript.Strategies
     /// </summary>
     public sealed class FootprintCore
     {
-        private readonly FootprintAssembler  _assembler;
-        private readonly FootprintCoreConfig _config;
-        private bool                         _initialized;
+        private readonly FootprintAssembler   _assembler;
+        private readonly FootprintCoreConfig  _config;
+        private readonly LevelHistoryTracker _levelHistory;
+        private bool                          _initialized;
 
         public FootprintCore(FootprintAssembler assembler, FootprintCoreConfig config)
         {
             if (assembler == null) throw new ArgumentNullException(nameof(assembler));
             
-            _assembler   = assembler;
-            _config      = config;
-            _initialized = false;
+            _assembler    = assembler;
+            _config       = config;
+            _levelHistory = new LevelHistoryTracker(config.LevelHistoryCapacityBars, config.LevelHistoryMaxLevels);
+            _initialized  = false;
         }
 
         public bool IsReady => _initialized;
@@ -322,6 +337,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             result = ComputeFromBar(in bar, mode, in _config);
+
+            if (result.IsValid)
+            {
+                _levelHistory.BeginBar(result.PrimaryBarEndTime, result.TickSize);
+                for (int i = 0; i < bar.LevelCount; i++)
+                {
+                    _levelHistory.AppendLevel(bar.Prices[i], bar.Ask[i], bar.Bid[i]);
+                }
+                _levelHistory.EndBar();
+            }
+
             return result.IsValid;
         }
 
