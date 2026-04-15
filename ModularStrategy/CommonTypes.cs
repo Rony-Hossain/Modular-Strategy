@@ -539,6 +539,34 @@ namespace MathLogic
         /// </summary>
         public const string TrapLevel = "TrapLevel";
 
+        // ── Iceberg Absorption (Phase 2.5 detector, Phase 2.8 wiring) ────
+        // Published by HostStrategy.OnPopulateIndicatorBag() each bar.
+        // Requires Volumetric. Detector requires absorption at bar extreme
+        // repeated across 2-of-3 recent bars (current + 2 prior).
+
+        /// <summary>
+        /// 1.0 when a repeated volume cluster was absorbed at the bar Low:
+        /// support wall held over the 3-bar window. Confirms LONG signals —
+        /// buyers defending the level. Vetoes SHORT signals (shorting into
+        /// known support is trading into absorbed flow).
+        /// Zero without Volumetric or when detector hasn't found recurrence.
+        /// </summary>
+        public const string BullIceberg = "BullIceberg";
+
+        /// <summary>
+        /// 1.0 when a repeated volume cluster was absorbed at the bar High:
+        /// resistance wall held. Confirms SHORT signals. Vetoes LONG signals.
+        /// Zero without Volumetric or no recurrence.
+        /// </summary>
+        public const string BearIceberg = "BearIceberg";
+
+        /// <summary>
+        /// Absolute price of the absorbed level — equals the bar Low (bull iceberg),
+        /// bar High (bear iceberg), or an intra-bar price (mid-bar recurrence,
+        /// informational only). Zero when no recurrence detected this bar.
+        /// </summary>
+        public const string IcebergPrice = "IcebergPrice";
+
         // ── Volumetric Bars keys ─────────────────────────────────────────
         // Populated from AddVolumetric() BarsType. Works in BOTH backtest
         // and live (unlike the GetCurrentAskVolume path which is broken in

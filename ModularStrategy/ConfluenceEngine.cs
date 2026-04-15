@@ -50,6 +50,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private const int LAYER_C_DELTA_EXHST =  8;  // delta exhaustion confirms signal direction
         private const int LAYER_C_IMBAL_ZONE  =  6;  // price at historical imbalance zone
         private const int LAYER_C_TRAPPED_AGREE = 8;   // trapped flag on opposite side confirms direction
+        private const int LAYER_C_ICEBERG_AGREE = 8;   // iceberg flag on SAME side confirms direction
 
         // ── Layer D weights (Price action trigger) ────────────────────────
         private const int LAYER_D_FULL_STRUCT = 12;  // HH+HL or LH+LL confirmed
@@ -178,6 +179,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             if ( isLong && trapShortsFlag) layerC += LAYER_C_TRAPPED_AGREE;
             if (!isLong && trapLongsFlag ) layerC += LAYER_C_TRAPPED_AGREE;
 
+            // ── Iceberg agreement (Phase 2.8) ───────────────────────────────
+            // BullIceberg (cluster at Low) confirms LONG. BearIceberg (cluster at High)
+            // confirms SHORT. Same-side mapping — opposite of Trapped Traders.
+            bool bullIcebergFlag = snap.GetFlag(SnapKeys.BullIceberg);
+            bool bearIcebergFlag = snap.GetFlag(SnapKeys.BearIceberg);
+
+            if ( isLong && bullIcebergFlag) layerC += LAYER_C_ICEBERG_AGREE;
+            if (!isLong && bearIcebergFlag) layerC += LAYER_C_ICEBERG_AGREE;
+
             // SMF NonConfirmation veto
             if (isLong  && snap.GetFlag(SnapKeys.NonConfLong))  isVetoed = true;
             if (!isLong && snap.GetFlag(SnapKeys.NonConfShort)) isVetoed = true;
@@ -226,6 +236,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Symmetric for shorts.
             if (isLong  && trapLongsFlag ) { isVetoed = true; }
             if (!isLong && trapShortsFlag) { isVetoed = true; }
+
+            // Phase 2.8 — Iceberg opposition veto
+            // Long signal while a BEAR iceberg (overhead wall) is active → trading
+            // into absorbed resistance. Short signal while BULL iceberg is active →
+            // trading into absorbed support.
+            if ( isLong && bearIcebergFlag) { isVetoed = true; }
+            if (!isLong && bullIcebergFlag) { isVetoed = true; }
 
             layerC = Math.Min(layerC, 30);  // hard cap retained for safety, 
                                             // though new max is ~22
@@ -352,6 +369,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if ((isLong && above) || (!isLong && !above)) sb.Append("vwap+");
                 }
                 if ((isLong && trapShortsFlag) || (!isLong && trapLongsFlag)) sb.Append("trap+");
+                if ((isLong && bullIcebergFlag) || (!isLong && bearIcebergFlag)) sb.Append("ice+");
                 if (snap.GetFlag(SnapKeys.NonConfLong) || snap.GetFlag(SnapKeys.NonConfShort)) sb.Append("ncVETO");
             }
 
@@ -362,6 +380,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (snap.GetFlag(SnapKeys.ImbalZoneAtBear))  sb.Append("vZB");
                 if (cd > CUMDELTA_EXHAUSTED && sbullCnt < WEAK_STACK_COUNT) sb.Append("vEXHL");
                 if (trapLongsFlag) sb.Append("vTRAP");
+                if (bearIcebergFlag) sb.Append("vICE");
             }
             else
             {
@@ -369,6 +388,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (snap.GetFlag(SnapKeys.ImbalZoneAtBull))  sb.Append("vZU");
                 if (cd < -CUMDELTA_EXHAUSTED && sbearCnt < WEAK_STACK_COUNT) sb.Append("vEXHS");
                 if (trapShortsFlag) sb.Append("vTRAP");
+                if (bullIcebergFlag) sb.Append("vICE");
             }
 
             // LayerD reasons

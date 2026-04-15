@@ -587,6 +587,20 @@ namespace NinjaTrader.NinjaScript.Strategies
                 snapshot.Set(SnapKeys.TrapLevel, 0.0);
             }
 
+            // Phase 2.8 — Iceberg
+            if (_lastFpResult.IsValid)
+            {
+                snapshot.Set(SnapKeys.BullIceberg, _lastFpResult.BullIceberg ? 1.0 : 0.0);
+                snapshot.Set(SnapKeys.BearIceberg, _lastFpResult.BearIceberg ? 1.0 : 0.0);
+                snapshot.Set(SnapKeys.IcebergPrice, _lastFpResult.IcebergPrice);
+            }
+            else
+            {
+                snapshot.Set(SnapKeys.BullIceberg, 0.0);
+                snapshot.Set(SnapKeys.BearIceberg, 0.0);
+                snapshot.Set(SnapKeys.IcebergPrice, 0.0);
+            }
+
             snapshot.Set(SnapKeys.BullDivergence, _divTracker.IsBullDivergenceActive(CurrentBar) ? 1.0 : 0.0);
             snapshot.Set(SnapKeys.BearDivergence, _divTracker.IsBearDivergenceActive(CurrentBar) ? 1.0 : 0.0);
             snapshot.Set(SnapKeys.H1EmaBias, _h1EmaBias);
