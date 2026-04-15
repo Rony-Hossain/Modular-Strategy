@@ -1,14 +1,17 @@
 # User requested ignores
 .claude/
 .claude-flow/
+.swarm/
 backtest/
 *.csv
 CLAUDE.md
 .mcp.json
+ruvector.db
 
 # Common build and binary directories
 bin/
 obj/
+tests/
 *.exe
 *.dll
 *.pdb

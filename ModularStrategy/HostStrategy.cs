@@ -105,6 +105,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private   OrderManager     _orderManager;
         protected IUIRenderer      _ui;
         protected StrategyLogger   _log;
+        private ConditionSets.ForwardReturnTracker _forwardTracker;
 
         private StrategyEngine            _engine;
         private SignalRankingEngine       _rankingEngine;
@@ -225,6 +226,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (MaxDailyLoss <= 0) MaxDailyLoss = AccountSize * 0.02;
 
                 _log       = new StrategyLogger(this, LogLevel) { WriteCsv = WriteCsvLog };
+                _forwardTracker = new ConditionSets.ForwardReturnTracker(
+                    _log,
+                    windowBars: 60,
+                    pointValue: Instrument.MasterInstrument.PointValue);
+                _log.Tracker = _forwardTracker;
                 _feed      = new DataFeed(this, inst, 0, 1, 2, 3, 4, 5);
                 _engine    = (StrategyEngine)CreateLogic(inst);
                 _logic     = _engine;
@@ -313,6 +319,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _obZones.Update(ref snapshot, snapshot.Primary, CurrentBar);
 
             OnPopulateIndicatorBag(ref snapshot);
+            _forwardTracker?.OnBar(
+                High[0], Low[0], Close[0], Time[0],
+                CurrentBar, Bars.IsFirstBarOfSession);
             _log?.BarContext_Tick(snapshot, CurrentBar);
             _log?.OrderFlowBar(snapshot.Primary.Time, snapshot); // RESTORED
             _log?.StructuralBar(snapshot.Primary.Time, in _lastSrResult);

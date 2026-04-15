@@ -2,6 +2,7 @@
 using System;
 using MathLogic;
 using MathLogic.Strategy;
+using NinjaTrader.NinjaScript.Strategies;
 using MarketSnapshot = MathLogic.Strategy.MarketSnapshot;
 #endregion
 
@@ -22,8 +23,16 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
     {
         public string SetId => "ORB_Value_v2";
 
+        private readonly StrategyLogger _log;
         private double _tickSize;
         private double _tickValue;
+
+        public ORB_Classic() { }
+
+        public ORB_Classic(StrategyLogger log)
+        {
+            _log = log;
+        }
 
         // Session State
         private SignalDirection _firstBreakout = SignalDirection.None;
@@ -129,6 +138,18 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
                 double stopDistance = Math.Max(100.0 * _tickSize, 1.0 * atr);
                 double entryPrice   = p.Close;
+                double stopPrice    = entryPrice - stopDistance;
+                double targetPrice  = entryPrice + stopDistance;
+
+                if (_log != null)
+                {
+                    string signalId = string.Format("{0}:{1:yyyyMMdd_HHmmss}:{2}", SetId, p.Time, p.CurrentBar);
+                    _log.LogTouchEvent(
+                        signalId, SetId, SignalDirection.Long,
+                        entryPrice, bandLo, bandHi,
+                        stopPrice, targetPrice,
+                        "ORB_VALUE", p.Time, snapshot);
+                }
 
                 _lastBailReason = "FIRED_LONG";
                 return new RawDecision
@@ -137,8 +158,8 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                     Source       = SignalSource.ORB_Retest,
                     ConditionSetId = SetId,
                     EntryPrice   = entryPrice,
-                    StopPrice    = entryPrice - stopDistance,
-                    TargetPrice  = entryPrice + stopDistance,
+                    StopPrice    = stopPrice,
+                    TargetPrice  = targetPrice,
                     Target2Price = entryPrice + (2.0 * stopDistance),
                     Label        = $"ORB Reload Long [{SetId}]",
                     RawScore     = 85,
@@ -165,6 +186,18 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
                 double stopDistance = Math.Max(100.0 * _tickSize, 1.0 * atr);
                 double entryPrice   = p.Close;
+                double stopPrice    = entryPrice + stopDistance;
+                double targetPrice  = entryPrice - stopDistance;
+
+                if (_log != null)
+                {
+                    string signalId = string.Format("{0}:{1:yyyyMMdd_HHmmss}:{2}", SetId, p.Time, p.CurrentBar);
+                    _log.LogTouchEvent(
+                        signalId, SetId, SignalDirection.Short,
+                        entryPrice, bandLo, bandHi,
+                        stopPrice, targetPrice,
+                        "ORB_VALUE", p.Time, snapshot);
+                }
 
                 _lastBailReason = "FIRED_SHORT";
                 return new RawDecision
@@ -173,8 +206,8 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                     Source       = SignalSource.ORB_Retest,
                     ConditionSetId = SetId,
                     EntryPrice   = entryPrice,
-                    StopPrice    = entryPrice + stopDistance,
-                    TargetPrice  = entryPrice - stopDistance,
+                    StopPrice    = stopPrice,
+                    TargetPrice  = targetPrice,
                     Target2Price = entryPrice - (2.0 * stopDistance),
                     Label        = $"ORB Reload Short [{SetId}]",
                     RawScore     = 85,

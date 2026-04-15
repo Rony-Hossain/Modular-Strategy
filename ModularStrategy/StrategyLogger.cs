@@ -93,6 +93,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         // write the real bar number instead of 0.
         public int CurrentBar { get; set; } = 0;
 
+        // Set by HostStrategy after construction. When non-null, LogTouchEvent
+        // automatically registers the touch for forward-return tracking.
+        public ConditionSets.ForwardReturnTracker Tracker { get; set; }
+
         public StrategyLogger(NinjaScriptBase host, LogLevel level = LogLevel.Normal)
         {
             _host = host;
@@ -407,6 +411,185 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _contextBarsLogged = 0;
                 _contextSignalId   = "";
             }
+        }
+
+        // =========================================================================
+        // TOUCH LOG (strategy-agnostic)
+        // =========================================================================
+        // Tag = TOUCH. Written by any condition set at the moment a qualifying
+        // touch is detected. Snapshots all relevant bus channels for post-hoc
+        // analysis of what made it through vs. dropped. Paired with a
+        // TOUCH_OUTCOME row written N bars later by ForwardReturnTracker.
+        // =========================================================================
+
+        /// <summary>
+        /// Log a touch event with a frozen snapshot of all relevant bus channels.
+        /// Called by condition sets at the moment of a tradeable touch detection.
+        /// </summary>
+        public void LogTouchEvent(
+            string signalId,
+            string conditionSetId,
+            SignalDirection direction,
+            double touchPrice,
+            double zoneLow,
+            double zoneHigh,
+            double stopPrice,
+            double targetPrice,
+            string zoneType,
+            DateTime touchTime,
+            MarketSnapshot snap)
+        {
+            if (!WriteCsv || _writer == null) return;
+
+            // Trend / structure
+            int    trd     = (int)snap.Get(SnapKeys.SwingTrend);
+            int    lastHL  = (int)snap.Get(SnapKeys.LastHighLabel);
+            int    lastLL  = (int)snap.Get(SnapKeys.LastLowLabel);
+            int    bosL    = (int)snap.Get(SnapKeys.BOSFiredLong);
+            int    bosS    = (int)snap.Get(SnapKeys.BOSFiredShort);
+            int    chL     = (int)snap.Get(SnapKeys.CHoCHFiredLong);
+            int    chS     = (int)snap.Get(SnapKeys.CHoCHFiredShort);
+            int    sw      = (int)snap.Get(SnapKeys.ConfirmedSwings);
+
+            // FVG state
+            int    fvgBL   = (int)snap.Get(SnapKeys.FvgBullActive);
+            double fvgBLLo = snap.Get(SnapKeys.FvgBullLow);
+            double fvgBLHi = snap.Get(SnapKeys.FvgBullHigh);
+            int    fvgBR   = (int)snap.Get(SnapKeys.FvgBearActive);
+            double fvgBRLo = snap.Get(SnapKeys.FvgBearLow);
+            double fvgBRHi = snap.Get(SnapKeys.FvgBearHigh);
+
+            // OB state
+            int    obBL    = (int)snap.Get(SnapKeys.ObBullActive);
+            double obBLLo  = snap.Get(SnapKeys.ObBullLow);
+            double obBLHi  = snap.Get(SnapKeys.ObBullHigh);
+            int    obBR    = (int)snap.Get(SnapKeys.ObBearActive);
+            double obBRLo  = snap.Get(SnapKeys.ObBearLow);
+            double obBRHi  = snap.Get(SnapKeys.ObBearHigh);
+
+            // Footprint — bar-level
+            double bd      = snap.Get(SnapKeys.BarDelta);
+            double cd      = snap.Get(SnapKeys.CumDelta);
+            double absScore= snap.Get(SnapKeys.AbsorptionScore);
+            double sbull   = snap.Get(SnapKeys.StackedImbalanceBull);
+            double sbear   = snap.Get(SnapKeys.StackedImbalanceBear);
+
+            // Footprint — location
+            double maxBidPx= snap.Get(SnapKeys.MaxBidVolPrice);
+            double maxAskPx= snap.Get(SnapKeys.MaxAskVolPrice);
+            double maxComPx= snap.Get(SnapKeys.MaxCombinedVolPrice);
+
+            // Footprint imbalance zones
+            int    izb     = snap.GetFlag(SnapKeys.ImbalZoneAtBull) ? 1 : 0;
+            int    izs     = snap.GetFlag(SnapKeys.ImbalZoneAtBear) ? 1 : 0;
+
+            // Volume profile
+            double poc     = snap.Get(SnapKeys.POC);
+            double vah     = snap.Get(SnapKeys.VAHigh);
+            double val     = snap.Get(SnapKeys.VALow);
+
+            // MTF EMA bias
+            double h1Bias  = snap.Get(SnapKeys.H1EmaBias);
+            double h2Bias  = snap.Get(SnapKeys.H2HrEmaBias);
+            double h4Bias  = snap.Get(SnapKeys.H4HrEmaBias);
+
+            // Divergence
+            int    bdiv    = snap.GetFlag(SnapKeys.BullDivergence) ? 1 : 0;
+            int    berdiv  = snap.GetFlag(SnapKeys.BearDivergence) ? 1 : 0;
+
+            // Market state
+            int    regime  = (int)snap.Get(SnapKeys.Regime);
+            double atr     = snap.ATR;
+            int    hasvol  = snap.GetFlag(SnapKeys.HasVolumetric) ? 1 : 0;
+
+            string detail = string.Format(
+                "ZONE_TYPE={0} ZONE_LO={1:F2} ZONE_HI={2:F2} TOUCH_PX={3:F2} STOP_PX={4:F2} TARGET_PX={5:F2} | " +
+                "TRD={6} LAST_HL={7} LAST_LL={8} BOS_L={9} BOS_S={10} CH_L={11} CH_S={12} SW={13} | " +
+                "FVG_BL={14} FVG_BL_LO={15:F2} FVG_BL_HI={16:F2} FVG_BR={17} FVG_BR_LO={18:F2} FVG_BR_HI={19:F2} | " +
+                "OB_BL={20} OB_BL_LO={21:F2} OB_BL_HI={22:F2} OB_BR={23} OB_BR_LO={24:F2} OB_BR_HI={25:F2} | " +
+                "BD={26:F0} CD={27:F0} ABS={28:F1} SBULL={29:F0} SBEAR={30:F0} | " +
+                "MAX_BID_PX={31:F2} MAX_ASK_PX={32:F2} MAX_COM_PX={33:F2} | " +
+                "IZB={34} IZS={35} | " +
+                "POC={36:F2} VAH={37:F2} VAL={38:F2} | " +
+                "H1B={39:F2} H2B={40:F2} H4B={41:F2} | " +
+                "BDIV={42} BERDIV={43} | " +
+                "REGIME={44} ATR={45:F2} HASVOL={46}",
+                zoneType, zoneLow, zoneHigh, touchPrice, stopPrice, targetPrice,
+                trd > 0 ? "+1" : trd < 0 ? "-1" : "0",
+                lastHL, lastLL, bosL, bosS, chL, chS, sw,
+                fvgBL, fvgBLLo, fvgBLHi, fvgBR, fvgBRLo, fvgBRHi,
+                obBL, obBLLo, obBLHi, obBR, obBRLo, obBRHi,
+                bd, cd, absScore, sbull, sbear,
+                maxBidPx, maxAskPx, maxComPx,
+                izb, izs,
+                poc, vah, val,
+                h1Bias, h2Bias, h4Bias,
+                bdiv, berdiv,
+                regime > 0 ? "+1" : regime < 0 ? "-1" : "0",
+                atr, hasvol);
+
+            string dirStr = direction == SignalDirection.Long ? "L" : "S";
+
+            WriteCsvRow(touchTime, "TOUCH", CurrentBar,
+                dirStr, "", conditionSetId,
+                0, "", 0,
+                touchPrice, 0, 0, 0, 0, 0,
+                0, 0, 0,
+                signalId, zoneType, detail);
+
+            // Auto-register with forward-return tracker (if wired).
+            // Strategy-agnostic — any condition set that logs a touch with
+            // valid stop/target gets outcome tracking.
+            Tracker?.Register(signalId, conditionSetId, direction,
+                              touchPrice, stopPrice, targetPrice,
+                              CurrentBar, touchTime);
+        }
+
+        // =========================================================================
+        // TOUCH OUTCOME LOG (forward-return data)
+        // =========================================================================
+        // Tag = TOUCH_OUTCOME. Written by ForwardReturnTracker N bars after a
+        // TOUCH event. Contains simulated forward-return data: MFE, MAE, whether
+        // stop/target would have been hit, hypothetical PnL, etc.
+        // Joins to TOUCH rows via SignalId.
+        // =========================================================================
+
+        /// <summary>
+        /// Log the forward-return outcome of a touch event N bars after it occurred.
+        /// </summary>
+        public void LogTouchOutcome(
+            string signalId,
+            string conditionSetId,
+            SignalDirection direction,
+            double mfeDollars,
+            double maeDollars,
+            int hitStop,
+            int hitTarget,
+            string firstHit,
+            double simPnL,
+            int barsToFirstHit,
+            double closeAtWindowEnd,
+            int windowBars,
+            DateTime outcomeTime)
+        {
+            if (!WriteCsv || _writer == null) return;
+
+            string detail = string.Format(
+                "MFE={0:F2} MAE={1:F2} HIT_STOP={2} HIT_TARGET={3} " +
+                "FIRST_HIT={4} SIM_PNL={5:F2} BARS_TO_HIT={6} " +
+                "CLOSE_END={7:F2} WINDOW_BARS={8}",
+                mfeDollars, maeDollars, hitStop, hitTarget,
+                firstHit, simPnL, barsToFirstHit,
+                closeAtWindowEnd, windowBars);
+
+            string dirStr = direction == SignalDirection.Long ? "L" : "S";
+
+            WriteCsvRow(outcomeTime, "TOUCH_OUTCOME", CurrentBar,
+                dirStr, "", conditionSetId,
+                0, "", 0,
+                simPnL, 0, 0, 0, 0, 0,
+                0, 0, 0,
+                signalId, firstHit, detail);
         }
 
         public void SignalRejected(DateTime barTime, SignalSource source,

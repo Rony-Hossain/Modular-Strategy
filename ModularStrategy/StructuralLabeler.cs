@@ -169,8 +169,20 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
         private double DeriveTrend()
         {
-            if (_lastHighLabel == SwingLabel.HH && _lastLowLabel == SwingLabel.HL) return 1.0;
-            if (_lastHighLabel == SwingLabel.LH && _lastLowLabel == SwingLabel.LL) return -1.0;
+            // Bullish: Higher High (HH) + Higher Low (HL)
+            // Or HH + LL (Starting sequence where High came first)
+            if (_lastHighLabel == SwingLabel.HH)
+            {
+                if (_lastLowLabel == SwingLabel.HL || _lastLowLabel == SwingLabel.LL) return 1.0;
+            }
+
+            // Bearish: Lower High (LH) + Lower Low (LL)
+            // Or LH + HL (Starting sequence where Low came first)
+            if (_lastHighLabel == SwingLabel.LH)
+            {
+                if (_lastLowLabel == SwingLabel.LL || _lastLowLabel == SwingLabel.HL) return -1.0;
+            }
+
             return 0.0;
         }
     }

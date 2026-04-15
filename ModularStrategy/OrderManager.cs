@@ -404,10 +404,18 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // ── Stage 2.5: FootprintTradeAdvisor — Hold / Tighten / ExitEarly ──
             // LIVE mode: advisor evaluates every bar and acts on decisions.
-
-            // ORB trades use pre-calibrated stops — skip all dynamic stop management
-            bool isORB = (_activeSignal?.ConditionSetId ?? "").StartsWith("ORB_");
-            if (isORB) return;
+            //
+            // NOTE: ORB trades flow through the full advisor pipeline — there is no
+            // bypass. The static T1-hit BE (used to live in an ORB-only block here)
+            // is now produced by the unified Stage 6 T1 logic below. This gives ORB:
+            //   - Stage 2.5 advisor (Hold/Tighten/ExitEarly on flow deterioration)
+            //   - Stage 3  BE arm at ATR×0.20 (min 4t) via default family
+            //   - Stage 4  dynamic BE triggers (T1 proximity 70%, CVD div, regime flip, CVD slope)
+            //   - Stage 6  T1-hit → BE+2t (1-lot path: no partial, just stop move)
+            //   - Stage 7  ATR trail post-T1
+            //   - Stage 8  T2 exit
+            // This is the fix for the "MFE reaches 49% of T1 then reverses to full stop"
+            // case — dynamic exits now see ORB positions.
 
             // Flip TRADE_ADVISOR_COMPARE_ONLY to true if you want shadow logs only.
             
