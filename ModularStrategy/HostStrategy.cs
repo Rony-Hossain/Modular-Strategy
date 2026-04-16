@@ -601,6 +601,22 @@ namespace NinjaTrader.NinjaScript.Strategies
                 snapshot.Set(SnapKeys.IcebergPrice, 0.0);
             }
 
+            // Phase 2.9 — Exhaustion + Unfinished Auction
+            if (_lastFpResult.IsValid)
+            {
+                snapshot.Set(SnapKeys.BullExhaustion,   _lastFpResult.BullExhaustion   ? 1.0 : 0.0);
+                snapshot.Set(SnapKeys.BearExhaustion,   _lastFpResult.BearExhaustion   ? 1.0 : 0.0);
+                snapshot.Set(SnapKeys.UnfinishedTop,    _lastFpResult.UnfinishedTop    ? 1.0 : 0.0);
+                snapshot.Set(SnapKeys.UnfinishedBottom, _lastFpResult.UnfinishedBottom ? 1.0 : 0.0);
+            }
+            else
+            {
+                snapshot.Set(SnapKeys.BullExhaustion,   0.0);
+                snapshot.Set(SnapKeys.BearExhaustion,   0.0);
+                snapshot.Set(SnapKeys.UnfinishedTop,    0.0);
+                snapshot.Set(SnapKeys.UnfinishedBottom, 0.0);
+            }
+
             snapshot.Set(SnapKeys.BullDivergence, _divTracker.IsBullDivergenceActive(CurrentBar) ? 1.0 : 0.0);
             snapshot.Set(SnapKeys.BearDivergence, _divTracker.IsBearDivergenceActive(CurrentBar) ? 1.0 : 0.0);
             snapshot.Set(SnapKeys.H1EmaBias, _h1EmaBias);

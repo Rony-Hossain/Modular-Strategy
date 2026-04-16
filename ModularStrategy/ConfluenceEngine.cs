@@ -51,6 +51,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         private const int LAYER_C_IMBAL_ZONE  =  6;  // price at historical imbalance zone
         private const int LAYER_C_TRAPPED_AGREE = 8;   // trapped flag on opposite side confirms direction
         private const int LAYER_C_ICEBERG_AGREE = 8;   // iceberg flag on SAME side confirms direction
+        private const int LAYER_C_EXHAUSTION_AGREE = 8;   // opposite-side exhaustion confirms direction
+        private const int LAYER_C_UNFINISHED_AGREE = 4;   // target-side magnet — lighter, no veto
 
         // ── Layer D weights (Price action trigger) ────────────────────────
         private const int LAYER_D_FULL_STRUCT = 12;  // HH+HL or LH+LL confirmed
@@ -188,6 +190,24 @@ namespace NinjaTrader.NinjaScript.Strategies
             if ( isLong && bullIcebergFlag) layerC += LAYER_C_ICEBERG_AGREE;
             if (!isLong && bearIcebergFlag) layerC += LAYER_C_ICEBERG_AGREE;
 
+            // ── Exhaustion agreement (Phase 2.9) ────────────────────────────
+            // BullExhaustion (top exhausted) confirms SHORT. BearExhaustion (bottom
+            // exhausted) confirms LONG. Opposite-side mapping — mirrors Trapped.
+            bool bullExhFlag = snap.GetFlag(SnapKeys.BullExhaustion);
+            bool bearExhFlag = snap.GetFlag(SnapKeys.BearExhaustion);
+
+            if ( isLong && bearExhFlag) layerC += LAYER_C_EXHAUSTION_AGREE;
+            if (!isLong && bullExhFlag) layerC += LAYER_C_EXHAUSTION_AGREE;
+
+            // ── Unfinished Auction target-side (Phase 2.9) ──────────────────
+            // UnfinishedTop (high = magnet) gives longs a target overhead.
+            // UnfinishedBottom (low = magnet) gives shorts a target below.
+            bool unfinTopFlag    = snap.GetFlag(SnapKeys.UnfinishedTop);
+            bool unfinBottomFlag = snap.GetFlag(SnapKeys.UnfinishedBottom);
+
+            if ( isLong && unfinTopFlag   ) layerC += LAYER_C_UNFINISHED_AGREE;
+            if (!isLong && unfinBottomFlag) layerC += LAYER_C_UNFINISHED_AGREE;
+
             // SMF NonConfirmation veto
             if (isLong  && snap.GetFlag(SnapKeys.NonConfLong))  isVetoed = true;
             if (!isLong && snap.GetFlag(SnapKeys.NonConfShort)) isVetoed = true;
@@ -244,7 +264,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             if ( isLong && bearIcebergFlag) { isVetoed = true; }
             if (!isLong && bullIcebergFlag) { isVetoed = true; }
 
-            layerC = Math.Min(layerC, 30);  // hard cap retained for safety, 
+            // Phase 2.9 Exhaustion opposition veto was REMOVED (2026-04-15).
+            // The binary veto on a 5–15% fire-rate signal killed valid short-
+            // continuation setups where price briefly thinned at the low mid-move.
+            // Test A measured: removing this veto alone recovered +$21.8K net
+            // profit ($1.7K → $23.5K, beating pre-scoring baseline by +$4.5K).
+            // Scoring bonus (+8 on opposite-side agreement) stays — it works.
+            // See specs/phase2_9_exhaustion_unfinished_scoring.md Revision block.
+
+            layerC = Math.Min(layerC, 30);  // hard cap retained for safety,
                                             // though new max is ~22
 
             // =============================================================
@@ -370,6 +398,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 if ((isLong && trapShortsFlag) || (!isLong && trapLongsFlag)) sb.Append("trap+");
                 if ((isLong && bullIcebergFlag) || (!isLong && bearIcebergFlag)) sb.Append("ice+");
+                if ((isLong && bearExhFlag)    || (!isLong && bullExhFlag))    sb.Append("exh+");
+                if ((isLong && unfinTopFlag)   || (!isLong && unfinBottomFlag)) sb.Append("unf+");
                 if (snap.GetFlag(SnapKeys.NonConfLong) || snap.GetFlag(SnapKeys.NonConfShort)) sb.Append("ncVETO");
             }
 

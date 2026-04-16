@@ -567,6 +567,46 @@ namespace MathLogic
         /// </summary>
         public const string IcebergPrice = "IcebergPrice";
 
+        // ── Exhaustion (Phase 2.3 detector, Phase 2.9 wiring) ────────────
+        // Published by HostStrategy.OnPopulateIndicatorBag() each bar.
+        // Requires Volumetric and ≥4 levels in the bar for meaningful avg.
+
+        /// <summary>
+        /// 1.0 when top-level volume was &lt;50% of avg-level volume: the bullish
+        /// thrust ran out of participants at the high. Confirms SHORT signals
+        /// via +8 Layer C bonus. No veto — the 5–15% fire rate made binary veto
+        /// too destructive (see phase 2.9 Test A, 2026-04-15).
+        /// Zero without Volumetric or on thin bars (&lt;4 levels).
+        /// </summary>
+        public const string BullExhaustion = "BullExhaustion";
+
+        /// <summary>
+        /// 1.0 when bottom-level volume was &lt;50% of avg-level volume: the bearish
+        /// thrust ran out of participants at the low. Confirms LONG signals
+        /// via +8 Layer C bonus. No veto (see BullExhaustion note).
+        /// Zero without Volumetric or on thin bars.
+        /// </summary>
+        public const string BearExhaustion = "BearExhaustion";
+
+        // ── Unfinished Auction (Phase 2.2 detector, Phase 2.9 wiring) ────
+        // Published by HostStrategy.OnPopulateIndicatorBag() each bar.
+        // Requires Volumetric. Extreme prints both bid AND ask aggressor
+        // volume → auction didn't fully reject → magnet for future revisit.
+
+        /// <summary>
+        /// 1.0 when both bid and ask aggressors printed at the bar High:
+        /// the high is a revisit magnet. Modest LONG confirmation (target-side).
+        /// No veto — signal is context-dependent.
+        /// </summary>
+        public const string UnfinishedTop = "UnfinishedTop";
+
+        /// <summary>
+        /// 1.0 when both bid and ask aggressors printed at the bar Low:
+        /// the low is a revisit magnet. Modest SHORT confirmation (target-side).
+        /// No veto.
+        /// </summary>
+        public const string UnfinishedBottom = "UnfinishedBottom";
+
         // ── Volumetric Bars keys ─────────────────────────────────────────
         // Populated from AddVolumetric() BarsType. Works in BOTH backtest
         // and live (unlike the GetCurrentAskVolume path which is broken in
