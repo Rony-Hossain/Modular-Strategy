@@ -55,9 +55,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         private double    _lastTradePrice;
         private Aggressor _lastSide;
 
-        private BigPrintDetector _bigPrintDetector;
-        private VelocityDetector _velocityDetector;
-        private SweepDetector    _sweepDetector;
+        private BigPrintDetector    _bigPrintDetector;
+        private VelocityDetector    _velocityDetector;
+        private SweepDetector       _sweepDetector;
+        private TapeIcebergDetector _tapeIcebergDetector;
 
         public TapeRecorder(int capacity = DEFAULT_CAPACITY, long windowMs = DEFAULT_WINDOW_MS)
         {
@@ -81,6 +82,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         public void SetSweepDetector(SweepDetector detector)
         {
             _sweepDetector = detector;
+        }
+
+        public void SetTapeIcebergDetector(TapeIcebergDetector detector)
+        {
+            _tapeIcebergDetector = detector;
         }
 
         public int  Count     { get { return _count; } }
@@ -160,6 +166,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             _bigPrintDetector?.OnTick(in tick);
             _velocityDetector?.OnTick(in tick);
             _sweepDetector?.OnTick(in tick);
+            _tapeIcebergDetector?.OnTick(in tick);
         }
 
         /// <summary>0 = oldest, Count-1 = newest.</summary>

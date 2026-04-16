@@ -121,6 +121,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private BigPrintDetector         _bigPrint;
         private VelocityDetector         _velocity;
         private SweepDetector            _sweep;
+        private TapeIcebergDetector      _tapeIceberg;
         private double                   _tapeBid;
         private double                   _tapeAsk;
         private FootprintEntryAdvisor    _entryAdvisor;
@@ -253,9 +254,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _bigPrint    = new BigPrintDetector();
                 _velocity    = new VelocityDetector();
                 _sweep       = new SweepDetector(Instrument.MasterInstrument.TickSize);
+                _tapeIceberg = new TapeIcebergDetector(Instrument.MasterInstrument.TickSize);
                 _tape.SetBigPrintDetector(_bigPrint);
                 _tape.SetVelocityDetector(_velocity);
                 _tape.SetSweepDetector(_sweep);
+                _tape.SetTapeIcebergDetector(_tapeIceberg);
                 _entryAdvisor = new FootprintEntryAdvisor(FootprintEntryAdvisorConfig.Default);
                 _orbProcessor = new VolumeProfileProcessor(Instrument.MasterInstrument.TickSize);
                 _signalGen = new SignalGenerator(
@@ -284,6 +287,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _bigPrint?.OnSessionOpen();
                 _velocity?.OnSessionOpen();
                 _sweep?.OnSessionOpen();
+                _tapeIceberg?.OnSessionOpen();
                 _feed.OnSessionOpen(); _signalGen.OnSessionOpen(); _orders.OnSessionOpen();
                 _activeSignal = null; _lastSignalBar = -1;
                 System.Array.Clear(_tradesRingBuffer, 0, AVG_TRADES_PERIOD);
