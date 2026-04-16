@@ -56,6 +56,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private Aggressor _lastSide;
 
         private BigPrintDetector _bigPrintDetector;
+        private VelocityDetector _velocityDetector;
 
         public TapeRecorder(int capacity = DEFAULT_CAPACITY, long windowMs = DEFAULT_WINDOW_MS)
         {
@@ -69,6 +70,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         public void SetBigPrintDetector(BigPrintDetector detector)
         {
             _bigPrintDetector = detector;
+        }
+
+        public void SetVelocityDetector(VelocityDetector detector)
+        {
+            _velocityDetector = detector;
         }
 
         public int  Count     { get { return _count; } }
@@ -146,6 +152,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             _bigPrintDetector?.OnTick(in tick);
+            _velocityDetector?.OnTick(in tick);
         }
 
         /// <summary>0 = oldest, Count-1 = newest.</summary>
