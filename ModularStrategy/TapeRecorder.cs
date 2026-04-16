@@ -27,7 +27,8 @@ namespace NinjaTrader.NinjaScript.Strategies
     }
 
     /// <summary>
-    /// Phase 3.1 — Allocation-free tick ring buffer (~30s window).
+    /// Phase 3.1/3.2 — Allocation-free tick ring buffer (~30s window)
+    /// with Lee-Ready aggressor classification.
     /// Single-threaded: NT8 delivers OnMarketData on the instrument thread, no locking.
     /// </summary>
     public sealed class TapeRecorder
@@ -46,6 +47,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private DateTime _sessionOpenTime;
         private bool     _armed;
+
+        // Phase 3.2 — pre-tick BBO + Lee-Ready state
+        private double    _preBid;
+        private double    _preAsk;
+        private bool      _bboValid;
+        private double    _lastTradePrice;
+        private Aggressor _lastSide;
 
         public TapeRecorder(int capacity = DEFAULT_CAPACITY, long windowMs = DEFAULT_WINDOW_MS)
         {
@@ -68,6 +76,19 @@ namespace NinjaTrader.NinjaScript.Strategies
             _oldest          = 0;
             _count           = 0;
             _lastSeqNo       = 0;
+            _preBid          = 0;
+            _preAsk          = 0;
+            _bboValid        = false;
+            _lastTradePrice  = 0;
+            _lastSide        = Aggressor.Unknown;
+        }
+
+        /// <summary>Call on every Bid/Ask MarketData event to track pre-tick BBO.</summary>
+        public void OnBbo(double bid, double ask)
+        {
+            _preBid   = bid;
+            _preAsk   = ask;
+            _bboValid = true;
         }
 
         public void OnTick(DateTime timeUtc, double price, long volume, double bid, double ask)
@@ -76,10 +97,23 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             long timeMs = (long)(timeUtc - _sessionOpenTime).TotalMilliseconds;
 
+            // Lee-Ready classification (Phase 3.2)
+            double useBid = _bboValid ? _preBid : bid;
+            double useAsk = _bboValid ? _preAsk : ask;
+
             Aggressor side;
-            if      (price >= ask) side = Aggressor.Buy;
-            else if (price <= bid) side = Aggressor.Sell;
-            else                   side = Aggressor.Unknown;
+            if      (price >= useAsk) side = Aggressor.Buy;
+            else if (price <= useBid) side = Aggressor.Sell;
+            else if (price > _lastTradePrice && _lastTradePrice > 0) side = Aggressor.Buy;
+            else if (price < _lastTradePrice && _lastTradePrice > 0) side = Aggressor.Sell;
+            else if (_lastSide != Aggressor.Unknown)                 side = _lastSide;
+            else                                                     side = Aggressor.Unknown;
+
+            _lastTradePrice = price;
+            _lastSide       = side;
+
+            bid = useBid;
+            ask = useAsk;
 
             long seq = ++_lastSeqNo;
             _ring[_head] = new Tick(seq, timeMs, price, volume, bid, ask, side);

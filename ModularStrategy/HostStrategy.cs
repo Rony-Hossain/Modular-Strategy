@@ -118,6 +118,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         private FootprintAssembler       _fpAssembler;
         private FootprintCore            _fpCore;
         private TapeRecorder             _tape;
+        private double                   _tapeBid;
+        private double                   _tapeAsk;
         private FootprintEntryAdvisor    _entryAdvisor;
         private VolumeProfileProcessor   _orbProcessor;
         private readonly FootprintDivergenceTracker _divTracker = new FootprintDivergenceTracker();
@@ -269,7 +271,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (BarsInProgress == 0 && Bars.IsFirstBarOfSession)
             {
-                _tape?.OnSessionOpen(Time[0]);
+                _tape?.OnSessionOpen(Time[0]); _tapeBid = 0; _tapeAsk = 0;
                 _feed.OnSessionOpen(); _signalGen.OnSessionOpen(); _orders.OnSessionOpen();
                 _activeSignal = null; _lastSignalBar = -1;
                 System.Array.Clear(_tradesRingBuffer, 0, AVG_TRADES_PERIOD);
@@ -450,10 +452,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         protected override void OnMarketData(MarketDataEventArgs e)
         {
-            // Phase 3.1 — Tape Recorder capture. Last prints only; BBO fetched from L1 state.
-            if (e.MarketDataType != MarketDataType.Last) return;
             if (_tape == null) return;
-            _tape.OnTick(e.Time, e.Price, e.Volume, GetCurrentBid(), GetCurrentAsk());
+            if (e.MarketDataType == MarketDataType.Bid)  { _tapeBid = e.Price; return; }
+            if (e.MarketDataType == MarketDataType.Ask)  { _tapeAsk = e.Price; return; }
+            if (e.MarketDataType != MarketDataType.Last) return;
+            if (_tapeBid > 0 && _tapeAsk > 0)
+                _tape.OnBbo(_tapeBid, _tapeAsk);
+            _tape.OnTick(e.Time, e.Price, e.Volume, _tapeBid, _tapeAsk);
         }
 
         protected override void OnOrderUpdate(Order order, double limitPrice, double stopPrice, int quantity, int filled, double averageFillPrice, OrderState orderState, DateTime time, ErrorCode error, string comment)
