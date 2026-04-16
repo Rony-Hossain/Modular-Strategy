@@ -55,6 +55,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         private double    _lastTradePrice;
         private Aggressor _lastSide;
 
+        private BigPrintDetector _bigPrintDetector;
+
         public TapeRecorder(int capacity = DEFAULT_CAPACITY, long windowMs = DEFAULT_WINDOW_MS)
         {
             if (capacity <= 0)   throw new ArgumentOutOfRangeException("capacity");
@@ -62,6 +64,11 @@ namespace NinjaTrader.NinjaScript.Strategies
             _capacity = capacity;
             _windowMs = windowMs;
             _ring     = new Tick[capacity];
+        }
+
+        public void SetBigPrintDetector(BigPrintDetector detector)
+        {
+            _bigPrintDetector = detector;
         }
 
         public int  Count     { get { return _count; } }
@@ -116,7 +123,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             ask = useAsk;
 
             long seq = ++_lastSeqNo;
-            _ring[_head] = new Tick(seq, timeMs, price, volume, bid, ask, side);
+            Tick tick = new Tick(seq, timeMs, price, volume, bid, ask, side);
+            _ring[_head] = tick;
             _head = (_head + 1) % _capacity;
 
             if (_count < _capacity)
@@ -136,6 +144,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _oldest = (_oldest + 1) % _capacity;
                 _count--;
             }
+
+            _bigPrintDetector?.OnTick(in tick);
         }
 
         /// <summary>0 = oldest, Count-1 = newest.</summary>

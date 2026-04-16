@@ -118,6 +118,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private FootprintAssembler       _fpAssembler;
         private FootprintCore            _fpCore;
         private TapeRecorder             _tape;
+        private BigPrintDetector         _bigPrint;
         private double                   _tapeBid;
         private double                   _tapeAsk;
         private FootprintEntryAdvisor    _entryAdvisor;
@@ -247,6 +248,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _fpCore      = new FootprintCore(_fpAssembler, FootprintCoreConfig.Default);
                 _fpCore.Initialize(Instrument.MasterInstrument.TickSize, 600, Data.BarsPeriodType.Minute, 1);
                 _tape        = new TapeRecorder();
+                _bigPrint    = new BigPrintDetector();
+                _tape.SetBigPrintDetector(_bigPrint);
                 _entryAdvisor = new FootprintEntryAdvisor(FootprintEntryAdvisorConfig.Default);
                 _orbProcessor = new VolumeProfileProcessor(Instrument.MasterInstrument.TickSize);
                 _signalGen = new SignalGenerator(
@@ -272,6 +275,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (BarsInProgress == 0 && Bars.IsFirstBarOfSession)
             {
                 _tape?.OnSessionOpen(Time[0]); _tapeBid = 0; _tapeAsk = 0;
+                _bigPrint?.OnSessionOpen();
                 _feed.OnSessionOpen(); _signalGen.OnSessionOpen(); _orders.OnSessionOpen();
                 _activeSignal = null; _lastSignalBar = -1;
                 System.Array.Clear(_tradesRingBuffer, 0, AVG_TRADES_PERIOD);
