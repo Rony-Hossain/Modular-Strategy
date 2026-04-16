@@ -117,6 +117,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private FootprintAssembler       _fpAssembler;
         private FootprintCore            _fpCore;
+        private TapeRecorder             _tape;
         private FootprintEntryAdvisor    _entryAdvisor;
         private VolumeProfileProcessor   _orbProcessor;
         private readonly FootprintDivergenceTracker _divTracker = new FootprintDivergenceTracker();
@@ -243,6 +244,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _fpAssembler = new FootprintAssembler();
                 _fpCore      = new FootprintCore(_fpAssembler, FootprintCoreConfig.Default);
                 _fpCore.Initialize(Instrument.MasterInstrument.TickSize, 600, Data.BarsPeriodType.Minute, 1);
+                _tape        = new TapeRecorder();
                 _entryAdvisor = new FootprintEntryAdvisor(FootprintEntryAdvisorConfig.Default);
                 _orbProcessor = new VolumeProfileProcessor(Instrument.MasterInstrument.TickSize);
                 _signalGen = new SignalGenerator(
@@ -267,6 +269,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (BarsInProgress == 0 && Bars.IsFirstBarOfSession)
             {
+                _tape?.OnSessionOpen(Time[0]);
                 _feed.OnSessionOpen(); _signalGen.OnSessionOpen(); _orders.OnSessionOpen();
                 _activeSignal = null; _lastSignalBar = -1;
                 System.Array.Clear(_tradesRingBuffer, 0, AVG_TRADES_PERIOD);
@@ -443,6 +446,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                     _ui.AddSignal(signal);
                 }
             }
+        }
+
+        protected override void OnMarketData(MarketDataEventArgs e)
+        {
+            // Phase 3.1 — Tape Recorder capture. Last prints only; BBO fetched from L1 state.
+            if (e.MarketDataType != MarketDataType.Last) return;
+            if (_tape == null) return;
+            _tape.OnTick(e.Time, e.Price, e.Volume, GetCurrentBid(), GetCurrentAsk());
         }
 
         protected override void OnOrderUpdate(Order order, double limitPrice, double stopPrice, int quantity, int filled, double averageFillPrice, OrderState orderState, DateTime time, ErrorCode error, string comment)
