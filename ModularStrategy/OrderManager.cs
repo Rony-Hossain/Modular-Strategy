@@ -102,7 +102,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// can review TA_*_SHADOW rows without already changing behavior.
         /// Flip to false only after validation is complete, then retire 6.5 / 6.75.
         /// </summary>
-        private const bool TRADE_ADVISOR_COMPARE_ONLY = false;
+        private const bool TRADE_ADVISOR_COMPARE_ONLY = true;
 
         // ===================================================================
         // DEPENDENCIES
@@ -272,6 +272,24 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         /// <summary>
+        /// Phase 3.8 — force-flatten any open position and cancel pending orders.
+        /// Used by the HostStrategy time-window gate (no-overnight rule at 15:45 ET).
+        /// Mirrors OnSessionOpen's cleanup but is idempotent and callable mid-session.
+        /// </summary>
+        public void ForceFlatten(string reason)
+        {
+            if (_hasOpenPosition && _activeSignal != null)
+            {
+                if (_activeSignal.Direction == SignalDirection.Long)
+                    _host.ExitLong(0, _contractsRemaining, reason, "");
+                else
+                    _host.ExitShort(0, _contractsRemaining, reason, "");
+            }
+            CancelPending();
+            ResetPosition();
+        }
+
+        /// <summary>
         /// Submit a market entry order.
         /// When USE_FIXED_SIZE_ONE is true, overrides signal.Contracts to 1.
         /// This isolates execution quality testing from position sizing effects.
@@ -398,268 +416,174 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
             }
 
-            // ── Stage 2: Capture entry regime ─────────────────────────────
-            if (_entryRegime == 0 && snapshot.IsValid)
-                _entryRegime = (int)snapshot.Get(SnapKeys.Regime);
+            // Determine if strategy uses hands-off fixed targets (mean reversion)
+            bool isFixedTarget = activeSignal.ConditionSetId != null && (
+                activeSignal.ConditionSetId.StartsWith("SMC_FVG") ||
+                activeSignal.ConditionSetId.StartsWith("FailedAuction") ||
+                activeSignal.ConditionSetId.StartsWith("SMF_Native_Impulse") ||
+                activeSignal.ConditionSetId.StartsWith("IcebergAbsorption")
+            );
 
-            // ── Stage 2.5: FootprintTradeAdvisor — Hold / Tighten / ExitEarly ──
-            // LIVE mode: advisor evaluates every bar and acts on decisions.
-            //
-            // NOTE: ORB trades flow through the full advisor pipeline — there is no
-            // bypass. The static T1-hit BE (used to live in an ORB-only block here)
-            // is now produced by the unified Stage 6 T1 logic below. This gives ORB:
-            //   - Stage 2.5 advisor (Hold/Tighten/ExitEarly on flow deterioration)
-            //   - Stage 3  BE arm at ATR×0.20 (min 4t) via default family
-            //   - Stage 4  dynamic BE triggers (T1 proximity 70%, CVD div, regime flip, CVD slope)
-            //   - Stage 6  T1-hit → BE+2t (1-lot path: no partial, just stop move)
-            //   - Stage 7  ATR trail post-T1
-            //   - Stage 8  T2 exit
-            // This is the fix for the "MFE reaches 49% of T1 then reverses to full stop"
-            // case — dynamic exits now see ORB positions.
+            // Action 2: Fix the "Exit Strangling" for ORB
+            bool isORB = activeSignal.ConditionSetId != null && activeSignal.ConditionSetId.StartsWith("ORB_");
 
-            // Flip TRADE_ADVISOR_COMPARE_ONLY to true if you want shadow logs only.
-            
-            // FIX (#8): Account for expected exit slippage in profit evaluation.
-            double exitSlippageTicks = _slippageModel.EstimateExitSlippage(snapshot);
-            double netProfitTicks = currentProfitTicks - exitSlippageTicks;
-
-            _tradeAdvisor.OnNewFootprint(in fpResult);
-
-            var taContext = new FootprintTradeContext(
-                activeSignal.ConditionSetId ?? string.Empty,
-                activeSignal.SignalId ?? string.Empty,
-                _fillPrice,
-                close,
-                netProfitTicks,
-                _maxMFETicks,
-                _t1Hit,
-                _host.CurrentBar - _entryBar,
-                _entryRegime);
-
-            FootprintTradeDecision taDecision = _tradeAdvisor.Evaluate(
-                activeSignal.Direction,
-                in taContext,
-                activeSignal.ConditionSetId ?? string.Empty);
-
-            string taDiag = _tradeAdvisor.BuildDiagnostics(
-                    activeSignal.Direction,
-                    in taContext,
-                    activeSignal.ConditionSetId ?? string.Empty);
-
-            _log?.TA_Decision(snapshot.Primary.Time,
-                activeSignal.SignalId ?? "NA",
-                taDecision.Action.ToString(),
-                taDecision.SeverityScore,
-                taDecision.Reason,
-                taDiag);
-
-            if (taDecision.Action == FootprintTradeAction.ExitEarly)
+            // ── Stage 2: Time-Based Exit (Stop the 'Slow Death') ─────────
+            int barsInTrade = _host.CurrentBar - _entryBar;
+            if (barsInTrade >= 15) // 75 minutes in a 5-min chart
             {
-                _log?.Warn(snapshot.Primary.Time,
-                    TRADE_ADVISOR_COMPARE_ONLY
-                        ? "TA_EXIT_SHADOW sid={0} set={1} sev={2} reason={3} profit={4:F1}t mfe={5:F1}t"
-                        : "TA_EXIT sid={0} set={1} sev={2} reason={3} profit={4:F1}t mfe={5:F1}t",
-                    activeSignal.SignalId ?? "NA",
-                    activeSignal.ConditionSetId ?? "?",
-                    taDecision.SeverityScore,
-                    taDecision.Reason,
-                    currentProfitTicks,
-                    _maxMFETicks);
+                _log?.Warn(snapshot.Primary.Time, "TIME_EXIT: Closing after 15 bars to protect capital.");
+                ExitAll(activeSignal, "TimeExit");
+                return;
+            }
 
-                if (!TRADE_ADVISOR_COMPARE_ONLY)
+            // ── Stage 3: THE VOLATILITY NOOSE (2-Bar H/L Trail) ───────────
+            // Activate 'The Noose' once we are up at least 0.75 ATR.
+            // This trails much tighter than standard ATR logic.
+            if (_maxMFETicks >= (atrTicks * 0.75))
+            {
+                if (isLong)
                 {
-                    ExitAll(activeSignal, "FootprintExit");
-                    return;
+                    // Trail behind the lowest of the last 2 completed bars
+                    double lowOf2 = Math.Min(_host.Low[1], _host.Low[2]);
+                    double nooseStop = lowOf2 - (tickSize * 2); // 2-tick buffer
+                    if (nooseStop > _currentStopT1)
+                    {
+                        _currentStopT1 = nooseStop;
+                        _currentStopT2 = nooseStop;
+                        TryImproveLegStop(activeSignal, snapshot.Primary.Time, nooseStop, tickSize, "T1", "NOOSE");
+                        TryImproveLegStop(activeSignal, snapshot.Primary.Time, nooseStop, tickSize, "T2", "NOOSE");
+                    }
+                }
+                else
+                {
+                    double highOf2 = Math.Max(_host.High[1], _host.High[2]);
+                    double nooseStop = highOf2 + (tickSize * 2);
+                    if (nooseStop < _currentStopT1)
+                    {
+                        _currentStopT1 = nooseStop;
+                        _currentStopT2 = nooseStop;
+                        TryImproveLegStop(activeSignal, snapshot.Primary.Time, nooseStop, tickSize, "T1", "NOOSE");
+                        TryImproveLegStop(activeSignal, snapshot.Primary.Time, nooseStop, tickSize, "T2", "NOOSE");
+                    }
                 }
             }
 
-            if (taDecision.Action == FootprintTradeAction.Tighten &&
-                taDecision.TightenFactor > 1.0)
+            if (!isFixedTarget)
             {
-                _log?.Warn(snapshot.Primary.Time,
-                    TRADE_ADVISOR_COMPARE_ONLY
-                        ? "TA_TIGHTEN_SHADOW sid={0} set={1} sev={2} factor={3:F2} reason={4}"
-                        : "TA_TIGHTEN sid={0} set={1} sev={2} factor={3:F2} reason={4}",
-                    activeSignal.SignalId ?? "NA",
-                    activeSignal.ConditionSetId ?? "?",
-                    taDecision.SeverityScore,
-                    taDecision.TightenFactor,
-                    taDecision.Reason);
 
-                if (!TRADE_ADVISOR_COMPARE_ONLY)
-                    advisorTrailFactor = taDecision.TightenFactor;
-            }
+                // Stage 2.5 advisor (Skipped for ORB to prevent strangling)
+                if (!isORB)
+                {
+                    double exitSlippageTicks = _slippageModel.EstimateExitSlippage(snapshot);
+                    double netProfitTicks = currentProfitTicks - exitSlippageTicks;
 
-            // ── Stage 3: BE arm — set-specific threshold ──────────────────
-            // Replaces the previous global ATR × 0.10 with per-set values.
-            // Retest arms earliest (0.15 ATR) because it is the most fragile.
-            // Impulse arms latest  (0.30 ATR) because it needs the most room.
-            if (!_dynamicBeArmed)
-            {
-                double armTicks = GetBeArmTicks(activeSignal, atrTicks);
-                if (_maxMFETicks >= armTicks)
-                    _dynamicBeArmed = true;
-            }
-            // ── Stage 4: BE triggers (armed, not yet fired, pre-T1) ───────
-            if (_dynamicBeArmed && !_dynamicBeTriggered && !_t1Hit)
-            {
-                bool   triggerBE     = false;
-                string triggerReason = "";
+                    _tradeAdvisor.OnNewFootprint(in fpResult);
 
-                // Trigger A — T1 proximity
-                // Fires when MFE has reached 70% of T1 distance.
-                // Primary fix for wicked-out trades (46 BOS + 45 Retest = -$53,524).
-                if (!triggerBE)
+                    var taContext = new FootprintTradeContext(
+                        activeSignal.ConditionSetId ?? string.Empty,
+                        activeSignal.SignalId ?? string.Empty,
+                        _fillPrice,
+                        close,
+                        netProfitTicks,
+                        _maxMFETicks,
+                        _t1Hit,
+                        _host.CurrentBar - _entryBar,
+                        _entryRegime);
+
+                    FootprintTradeDecision taDecision = _tradeAdvisor.Evaluate(
+                        activeSignal.Direction,
+                        in taContext,
+                        activeSignal.ConditionSetId ?? string.Empty);
+
+                    string taDiag = _tradeAdvisor.BuildDiagnostics(
+                            activeSignal.Direction,
+                            in taContext,
+                            activeSignal.ConditionSetId ?? string.Empty);
+
+                    _log?.TA_Decision(snapshot.Primary.Time,
+                        activeSignal.SignalId ?? "NA",
+                        taDecision.Action.ToString(),
+                        taDecision.SeverityScore,
+                        taDecision.Reason,
+                        taDiag);
+
+                    if (taDecision.Action == FootprintTradeAction.ExitEarly)
+                    {
+                        _log?.Warn(snapshot.Primary.Time,
+                            TRADE_ADVISOR_COMPARE_ONLY
+                                ? "TA_EXIT_SHADOW sid={0} set={1} sev={2} reason={3} profit={4:F1}t mfe={5:F1}t"
+                                : "TA_EXIT sid={0} set={1} sev={2} reason={3} profit={4:F1}t mfe={5:F1}t",
+                            activeSignal.SignalId ?? "NA",
+                            activeSignal.ConditionSetId ?? "?",
+                            taDecision.SeverityScore,
+                            taDecision.Reason,
+                            currentProfitTicks,
+                            _maxMFETicks);
+
+                        if (!TRADE_ADVISOR_COMPARE_ONLY)
+                        {
+                            ExitAll(activeSignal, "FootprintExit");
+                            return;
+                        }
+                    }
+
+                    if (taDecision.Action == FootprintTradeAction.Tighten &&
+                        taDecision.TightenFactor > 1.0)
+                    {
+                        _log?.Warn(snapshot.Primary.Time,
+                            TRADE_ADVISOR_COMPARE_ONLY
+                                ? "TA_TIGHTEN_SHADOW sid={0} set={1} sev={2} factor={3:F2} reason={4}"
+                                : "TA_TIGHTEN sid={0} set={1} sev={2} factor={3:F2} reason={4}",
+                            activeSignal.SignalId ?? "NA",
+                            activeSignal.ConditionSetId ?? "?",
+                            taDecision.SeverityScore,
+                            taDecision.TightenFactor,
+                            taDecision.Reason);
+
+                        if (!TRADE_ADVISOR_COMPARE_ONLY)
+                            advisorTrailFactor = taDecision.TightenFactor;
+                    }
+                }
+
+                // ── HARD PROFIT GUARD: Stop the "Give Back" ─────────────────
+                // If we reach 80% of Target 1, we MUST move to Breakeven.
+                if (!_t1Hit && !_dynamicBeTriggered)
                 {
                     double t1DistTicks = Math.Abs(activeSignal.Target1Price - _fillPrice) / tickSize;
-                    if (t1DistTicks > 0 && _maxMFETicks >= t1DistTicks * MathPolicy.T1_PROX_BE_FACTOR)
+                    if (t1DistTicks > 10 && _maxMFETicks >= t1DistTicks * 0.80)
                     {
-                        triggerBE = true;
-                        triggerReason = string.Format(
-                            "T1_Prox(MFE={0:F1}t>={1:F0}%×T1={2:F1}t)",
-                            _maxMFETicks, MathPolicy.T1_PROX_BE_FACTOR * 100, t1DistTicks);
+                        _dynamicBeTriggered = true; 
+                        double beStop = isLong ? _fillPrice + 2 * tickSize : _fillPrice - 2 * tickSize;
+                        TryImproveLegStop(activeSignal, snapshot.Primary.Time, beStop, tickSize, "T1", "PROFIT_GUARD_BE");
+                        TryImproveLegStop(activeSignal, snapshot.Primary.Time, beStop, tickSize, "T2", "PROFIT_GUARD_BE");
+                        _log?.Warn(snapshot.Primary.Time, "PROFIT_GUARD_BE: Locked BE+2 at 80% of T1");
                     }
                 }
 
-                // Trigger B — CVD divergence against position
-                if (!triggerBE)
+                // ── PERFORMANCE TUNING: One-ATR Profit Lock (STRICTER) ────────
+                // Once we have 1 ATR of open profit, we never allow it to go back to BE.
+                if (_maxMFETicks >= atrTicks && atrTicks > 0)
                 {
-                    bool bearDiv = snapshot.GetFlag(SnapKeys.BearDivergence);
-                    bool bullDiv = snapshot.GetFlag(SnapKeys.BullDivergence);
-                    if (isLong  && bearDiv) { triggerBE = true; triggerReason = "CVD_BearDiv"; }
-                    if (!isLong && bullDiv) { triggerBE = true; triggerReason = "CVD_BullDiv"; }
+                    double lockGainTicks = _maxMFETicks * 0.50; // Lock half the peak gain
+                    double lockPrice = isLong ? _fillPrice + (lockGainTicks * tickSize) : _fillPrice - (lockGainTicks * tickSize);
+                    TryImproveLegStop(_activeSignal, snapshot.Primary.Time, lockPrice, tickSize, "T1", "ATR_LOCK_50");
+                    TryImproveLegStop(_activeSignal, snapshot.Primary.Time, lockPrice, tickSize, "T2", "ATR_LOCK_50");
                 }
 
-                // Trigger C — SMF regime flip against position
-                if (!triggerBE)
+                // ── PERFORMANCE TUNING: Aggressive Wave Stop Move ────────────
+                if (_waveLevel > 0)
                 {
-                    int currentRegime = (int)snapshot.Get(SnapKeys.Regime);
-                    if (isLong  && _entryRegime > 0 && currentRegime < 0)
-                    { triggerBE = true; triggerReason = "Regime_Flip"; }
-                    if (!isLong && _entryRegime < 0 && currentRegime > 0)
-                    { triggerBE = true; triggerReason = "Regime_Flip"; }
-                }
-
-                // Trigger D — CVD slope accelerating against position
-                // Fills the gap where Regime_Flip produced 0 events in 217 trades.
-                // CVD divergence (Trigger B) requires price and CVD to DISAGREE.
-                // This trigger fires when CVD is accelerating against you even if
-                // price is also moving against you (no divergence — both agree,
-                // but the speed of CVD decline signals institutional exit).
-                //
-                // Example: Long position. Price drifting down slowly. CVD crashing
-                // from -200 to -700 in 5 bars. No divergence (both down), but
-                // the slope magnitude (-100/bar) signals sellers piling in.
-                // Trigger B misses this. Trigger D catches it.
-                if (!triggerBE && snapshot.GetFlag(SnapKeys.HasVolumetric))
-                {
-                    double cvdSlope = snapshot.Get(SnapKeys.CvdSlope);
-                    bool cvdAgainst = isLong
-                        ? cvdSlope < -CVD_SLOPE_BE_THRESHOLD
-                        : cvdSlope >  CVD_SLOPE_BE_THRESHOLD;
-
-                    if (cvdAgainst)
+                    bool cleared = isLong ? (close > _waveLevel + atrTicks * tickSize) 
+                                          : (close < _waveLevel - atrTicks * tickSize);
+                    if (cleared)
                     {
-                        triggerBE = true;
-                        triggerReason = string.Format("CVD_Accel(slope={0:F1})", cvdSlope);
+                        TryImproveLegStop(activeSignal, snapshot.Primary.Time, _waveLevel, tickSize, "T1", "WAVE_DEFENSE");
+                        TryImproveLegStop(activeSignal, snapshot.Primary.Time, _waveLevel, tickSize, "T2", "WAVE_DEFENSE");
                     }
                 }
-
-                if (triggerBE)
-                {
-                    _dynamicBeTriggered = true;
-                    double beStop = isLong ? _fillPrice + tickSize : _fillPrice - tickSize;
-                    
-                    TryImproveLegStop(activeSignal, snapshot.Primary.Time, beStop, tickSize, "T1", string.Format("DynamicBE:{0}", triggerReason));
-                    TryImproveLegStop(activeSignal, snapshot.Primary.Time, beStop, tickSize, "T2", string.Format("DynamicBE:{0}", triggerReason));
-
-                    _log?.Warn(snapshot.Primary.Time,
-                        "DynamicBE:{0}  entry={1:F2}  mfe={2:F1}t  atr={3:F1}t",
-                        triggerReason, _fillPrice, _maxMFETicks, atrTicks);
-                }
             }
-
-            // ── PERFORMANCE TUNING: T1 Proximity Lock ─────────────────────
-            // FIX (#Layer5): Stop the $649 give-back. If 80% of T1 reached, lock +10 ticks.
-            if (!_t1Hit && !_dynamicBeTriggered)
-            {
-                double t1DistTicks = Math.Abs(_activeSignal.Target1Price - _fillPrice) / tickSize;
-                if (t1DistTicks > 20 && _maxMFETicks >= t1DistTicks * 0.80)
-                {
-                    _dynamicBeTriggered = true; // Prevents re-triggering
-                    double lockStop = isLong ? _fillPrice + 10 * tickSize : _fillPrice - 10 * tickSize;
-                    TryImproveLegStop(_activeSignal, snapshot.Primary.Time, lockStop, tickSize, "T1", "T1_PROX_LOCK");
-                    TryImproveLegStop(_activeSignal, snapshot.Primary.Time, lockStop, tickSize, "T2", "T1_PROX_LOCK");
-                }
-            }
-
-            // ── PERFORMANCE TUNING: One-ATR Profit Lock ──────────────────
-            // FIX (#ETD): If we reach 1.0x ATR of profit, lock in 50% of the open gain.
-            // This ensures meaningful winners never turn into losers.
-            if (_maxMFETicks >= atrTicks && atrTicks > 0)
-            {
-                double lockGainTicks = _maxMFETicks * 0.5;
-                double lockPrice = isLong ? _fillPrice + (lockGainTicks * tickSize) : _fillPrice - (lockGainTicks * tickSize);
-                TryImproveLegStop(_activeSignal, snapshot.Primary.Time, lockPrice, tickSize, "T1", "ATR_LOCK_50");
-                TryImproveLegStop(_activeSignal, snapshot.Primary.Time, lockPrice, tickSize, "T2", "ATR_LOCK_50");
-            }
-
-            // ── PERFORMANCE TUNING: Aggressive Wave Stop Move ────────────
-            // FIX (#idea2): Move stop to the "Reference Point" once cleared.
-            if (_waveLevel > 0)
-            {
-                bool cleared = isLong ? (close > _waveLevel + atrTicks * tickSize) 
-                                      : (close < _waveLevel - atrTicks * tickSize);
-                if (cleared)
-                {
-                    TryImproveLegStop(activeSignal, snapshot.Primary.Time, _waveLevel, tickSize, "T1", "WAVE_DEFENSE");
-                    TryImproveLegStop(activeSignal, snapshot.Primary.Time, _waveLevel, tickSize, "T2", "WAVE_DEFENSE");
-                }
-            }
-
-            // ── Stage 5: Pre-T1 MFE lock — DISABLED ──────────────────────
-            //
-            // This stage was designed to lock a fraction of peak profit before T1.
-            // It has been disabled because the ATR trail (Stage 7) is geometrically
-            // tighter at every ATR value, making TryImproveStop() always return false.
-            //
-            // Proof (BOS, ATR=40t):
-            //   Lock fires at MFE = 0.50×40 = 20t. Lock stop = entry + 0.35×20t = entry+7t.
-            //   Trail stop at that point = close - 0.30×40t ≈ (entry+20t) - 12t = entry+8t.
-            //   Trail is tighter (8t > 7t). TryImproveStop never fires. Confirmed by log:
-            //   zero "MFELock" entries across 499 trades in backtest v2.
-            //
-            // The helpers GetMfeLockStartTicks() and GetMfeLockPct() are preserved below.
-            // Re-enable this block if TRAIL_PRE_T1_ATR_FACTOR is raised above 0.50 or if
-            // the lock is redesigned to anchor at a fixed tick offset above current stop
-            // rather than a fraction of peak MFE.
-            //
-            // if (!_t1Hit && atrTicks > 0)
-            // {
-            //     double lockStartTicks = GetMfeLockStartTicks(activeSignal, atrTicks);
-            //     if (_maxMFETicks >= lockStartTicks)
-            //     {
-            //         double lockPct   = GetMfeLockPct(activeSignal);
-            //         double lockTicks = _maxMFETicks * lockPct;
-            //         double lockStop  = isLong
-            //             ? _fillPrice + lockTicks * tickSize
-            //             : _fillPrice - lockTicks * tickSize;
-            //         TryImproveStop(activeSignal, snapshot.Primary.Time,
-            //             lockStop, tickSize, "MFELock");
-            //     }
-            // }
 
             // ── Stage 6: T1 partial exit (set-specific percentage) ────────
-            //
-            // Replaces the global RiskDefaults.T1_PARTIAL_PCT (50%) with
-            // per-set percentages. BOS/Retest monetize 70% at T1 — these are
-            // the fragile sets most likely to reverse after initial move.
-            // Impulse keeps 50% as runner — strongest setup, best chance to T2.
-            //
-            // NOTE: with USE_FIXED_SIZE_ONE = true, _contractsTotal = 1.
-            // GetT1PartialContracts() returns 1 on a 1-lot trade, which triggers
-            // the "skip partial" path correctly. The set-specific pct is stored
-            // correctly and takes full effect when Gate 4 sizing is enabled.
             if (!_t1Hit)
             {
                 bool hitT1 = isLong
@@ -685,20 +609,22 @@ namespace NinjaTrader.NinjaScript.Strategies
                         UpdateT2Order(activeSignal);
                     }
 
-                    // After T1: move both stops to BE+2t. 
-                    // The ATR runner trail in Stage 7 takes over from here.
-                    double beAfterT1 = isLong
-                        ? _fillPrice + 2.0 * tickSize
-                        : _fillPrice - 2.0 * tickSize;
-                    
-                    TryImproveLegStop(activeSignal, snapshot.Primary.Time, beAfterT1, tickSize, "T1", "T1_BE");
-                    TryImproveLegStop(activeSignal, snapshot.Primary.Time, beAfterT1, tickSize, "T2", "T1_BE");
+                    if (!isFixedTarget)
+                    {
+                        // After T1: move both stops to BE+2t. 
+                        // The ATR runner trail in Stage 7 takes over from here.
+                        double beAfterT1 = isLong
+                            ? _fillPrice + 2.0 * tickSize
+                            : _fillPrice - 2.0 * tickSize;
+                        
+                        TryImproveLegStop(activeSignal, snapshot.Primary.Time, beAfterT1, tickSize, "T1", "T1_BE");
+                        TryImproveLegStop(activeSignal, snapshot.Primary.Time, beAfterT1, tickSize, "T2", "T1_BE");
+                    }
                 }
             }
 
             // ── Stage 7: ATR-proportional trailing stop ────────────────────
-            // Pre-T1:  ATR × 0.25 — scales with regime volatility.
-            // Post-T1: ATR × 0.40 — wider room for runner.
+            if (!isFixedTarget)
             {
                 double beThresh = GetBeArmTicks(activeSignal, atrTicks);
                 

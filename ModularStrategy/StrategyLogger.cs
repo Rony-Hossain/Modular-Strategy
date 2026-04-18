@@ -325,7 +325,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 sig.EntryPrice, sig.StopPrice, sig.StopTicks,
                 sig.Target1Price, sig.Target2Price, sig.RRRatio,
                 0, 0, 0,
-                "", sig.Label, "");
+                "", sig.Label, sig.Detail ?? "");
 
             // ── Log 5 pre-signal bars as BAR_CONTEXT row ──────────────────
             // snap.Primary.Closes[0] = current bar close (signal bar)
@@ -509,7 +509,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 "OB_BL={20} OB_BL_LO={21:F2} OB_BL_HI={22:F2} OB_BR={23} OB_BR_LO={24:F2} OB_BR_HI={25:F2} | " +
                 "BD={26:F0} CD={27:F0} ABS={28:F1} SBULL={29:F0} SBEAR={30:F0} | " +
                 "MAX_BID_PX={31:F2} MAX_ASK_PX={32:F2} MAX_COM_PX={33:F2} | " +
-                "IZB={34} IZS={35} | " +
+                "IZB={34:F0} IZS={35:F0} | " +
                 "POC={36:F2} VAH={37:F2} VAL={38:F2} | " +
                 "H1B={39:F2} H2B={40:F2} H4B={41:F2} | " +
                 "BDIV={42} BERDIV={43} | " +

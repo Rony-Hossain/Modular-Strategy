@@ -63,7 +63,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (!fvg.IsValid || fvg.IsFilled) return RawDecision.None;
             if (p.CurrentBar - fvg.CreatedBar > MAX_AGE_BARS) { fvg = FairValueGap.Empty; return RawDecision.None; }
             if (!(p.Low <= fvg.Upper && p.Close >= fvg.Lower)) return RawDecision.None;
-            if (p.Close > (p.High + p.Low) / 2.0) return RawDecision.None;
+            if (p.Close < (p.High + p.Low) / 2.0) return RawDecision.None;
             if (p.Low <= fvg.Lower) fvg.IsFilled = true;
 
             int score = Math.Min(100, 55 + (fvg.Size >= atr * 0.5 ? 5 : 0));
@@ -87,7 +87,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (!fvg.IsValid || fvg.IsFilled) return RawDecision.None;
             if (p.CurrentBar - fvg.CreatedBar > MAX_AGE_BARS) { fvg = FairValueGap.Empty; return RawDecision.None; }
             if (!(p.High >= fvg.Lower && p.Close <= fvg.Upper)) return RawDecision.None;
-            if (p.Close < (p.High + p.Low) / 2.0) return RawDecision.None;
+            if (p.Close > (p.High + p.Low) / 2.0) return RawDecision.None;
             if (p.High >= fvg.Upper) fvg.IsFilled = true;
 
             int score = Math.Min(100, 55 + (fvg.Size >= atr * 0.5 ? 5 : 0));

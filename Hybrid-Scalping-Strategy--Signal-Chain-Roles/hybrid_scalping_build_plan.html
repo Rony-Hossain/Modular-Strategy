@@ -1,0 +1,338 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.plan{font-family:var(--font-sans);padding:16px 0}
+.phase{border-radius:12px;border:0.5px solid var(--color-border-secondary);margin-bottom:10px;overflow:hidden}
+.phase-header{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;user-select:none}
+.phase-header:hover{background:var(--color-background-secondary)}
+.phase-badge{font-size:11px;font-weight:500;padding:3px 9px;border-radius:10px;white-space:nowrap;flex-shrink:0}
+.phase-title{font-size:14px;font-weight:500;color:var(--color-text-primary);flex:1}
+.phase-meta{font-size:11px;color:var(--color-text-tertiary);white-space:nowrap}
+.chevron{font-size:10px;color:var(--color-text-tertiary);transition:transform .2s;flex-shrink:0}
+.phase.open .chevron{transform:rotate(90deg)}
+.phase-body{display:none;border-top:0.5px solid var(--color-border-tertiary)}
+.phase.open .phase-body{display:block}
+.task{display:flex;gap:12px;padding:10px 16px;border-bottom:0.5px solid var(--color-border-tertiary)}
+.task:last-child{border-bottom:none}
+.task-left{flex-shrink:0;width:20px;display:flex;align-items:flex-start;padding-top:3px}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.task-content{flex:1}
+.task-name{font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:2px}
+.task-file{font-family:var(--font-mono);font-size:11px;color:var(--color-text-secondary);margin-bottom:3px}
+.task-desc{font-size:12px;color:var(--color-text-secondary);line-height:1.5}
+.task-action{display:inline-block;margin-top:5px;font-size:11px;font-weight:500;padding:3px 8px;border-radius:6px;cursor:pointer;border:0.5px solid var(--color-border-secondary);color:var(--color-text-secondary);background:var(--color-background-secondary)}
+.task-action:hover{border-color:var(--color-border-primary);color:var(--color-text-primary)}
+.signal-chain{background:var(--color-background-secondary);margin:10px 16px;border-radius:8px;padding:10px 14px}
+.signal-chain-title{font-size:11px;font-weight:500;color:var(--color-text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em}
+.chain{display:flex;align-items:center;flex-wrap:wrap;gap:4px}
+.chain-step{font-size:11px;padding:4px 10px;border-radius:6px;font-weight:500;white-space:nowrap}
+.chain-arrow{font-size:12px;color:var(--color-text-tertiary)}
+.p0-badge{background:#FCEBEB;color:#A32D2D}
+.p1-badge{background:#FAEEDA;color:#854F0B}
+.p2-badge{background:#E6F1FB;color:#185FA5}
+.p3-badge{background:#E1F5EE;color:#0F6E56}
+.p4-badge{background:#EEEDFE;color:#534AB7}
+.p5-badge{background:#F1EFE8;color:#5F5E5A}
+.d-blocker{background:#E24B4A}
+.d-fix{background:#EF9F27}
+.d-build{background:#378ADD}
+.d-wire{background:#1D9E75}
+.d-validate{background:#7F77DD}
+.d-infra{background:#888780}
+.cs-cat{background:#FAEEDA;color:#633806}
+.cs-fix{background:#FCEBEB;color:#791F1F}
+.cs-new{background:#E6F1FB;color:#0C447C}
+.cs-wire{background:#E1F5EE;color:#085041}
+.cs-val{background:#EEEDFE;color:#3C3489}
+@media(prefers-color-scheme:dark){
+.p0-badge{background:#791F1F;color:#F7C1C1}
+.p1-badge{background:#633806;color:#FAC775}
+.p2-badge{background:#0C447C;color:#B5D4F4}
+.p3-badge{background:#085041;color:#9FE1CB}
+.p4-badge{background:#3C3489;color:#CECBF6}
+.p5-badge{background:#444441;color:#D3D1C7}
+.cs-cat{background:#633806;color:#FAC775}
+.cs-fix{background:#791F1F;color:#F7C1C1}
+.cs-new{background:#0C447C;color:#B5D4F4}
+.cs-wire{background:#085041;color:#9FE1CB}
+.cs-val{background:#3C3489;color:#CECBF6}
+}
+.summary-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.sum-chip{font-size:11px;padding:4px 10px;border-radius:8px;font-weight:500}
+</style>
+<div class="plan">
+
+<div class="summary-row">
+  <span class="sum-chip p0-badge">Phase 0 — blockers (fix first)</span>
+  <span class="sum-chip p1-badge">Phase 1 — entry precision layer</span>
+  <span class="sum-chip p2-badge">Phase 2 — structure signals</span>
+  <span class="sum-chip p3-badge">Phase 3 — confluence wiring</span>
+  <span class="sum-chip p4-badge">Phase 4 — hybrid entry set</span>
+  <span class="sum-chip p5-badge">Phase 5 — validate + go-live</span>
+</div>
+
+<div class="phase" onclick="toggle(this)">
+  <div class="phase-header">
+    <span class="phase-badge p0-badge">Phase 0</span>
+    <span class="phase-title">Critical bug fixes — nothing else runs correctly until these are done</span>
+    <span class="phase-meta">4 tasks</span>
+    <span class="chevron">▶</span>
+  </div>
+  <div class="phase-body">
+    <div class="task">
+      <div class="task-left"><div class="dot d-blocker"></div></div>
+      <div class="task-content">
+        <div class="task-name">Fix FVG TryBull() close condition inversion</div>
+        <div class="task-file">SMC_OrderFlow.cs → SMC_FVG_Retest.TryBull()</div>
+        <div class="task-desc">Change <code>if (p.Close &gt; midpoint) return None</code> to <code>if (p.Close &lt; midpoint) return None</code>. Currently enters longs on bearish-closing bars inside a bullish FVG — exactly backwards. Every FVG long signal that has ever fired from this set was a wrong-side entry.</div>
+        <span class="task-action" onclick="event.stopPropagation();sendPrompt('Build fix for SMC_OrderFlow.cs TryBull close condition inversion')">Build this fix ↗</span>
+      </div>
+    </div>
+    <div class="task">
+      <div class="task-left"><div class="dot d-blocker"></div></div>
+      <div class="task-content">
+        <div class="task-name">Set TRADE_ADVISOR_COMPARE_ONLY = true</div>
+        <div class="task-file">OrderManager.cs → TRADE_ADVISOR_COMPARE_ONLY constant</div>
+        <div class="task-desc">Flip back to true immediately. FootprintTradeAdvisor exit thresholds are explicitly documented as unvalidated. They are currently making live exit decisions. Until you run the 5-step CSV validation protocol in the file's own comments, this must be shadow-only.</div>
+        <span class="task-action" onclick="event.stopPropagation();sendPrompt('Show me the validation protocol for FootprintTradeAdvisor thresholds')">Show validation steps ↗</span>
+      </div>
+    </div>
+    <div class="task">
+      <div class="task-left"><div class="dot d-fix"></div></div>
+      <div class="task-content">
+        <div class="task-name">Fix SMFNativeEngine shared state — Update() called 3x per bar</div>
+        <div class="task-file">SMF_Native.cs → SMFNativeEngine.Update()</div>
+        <div class="task-desc">All three SMF Native sets share one engine and each calls Update() in their Evaluate(). Cache basis/signal output per bar using a barIndex guard so the ZLEMA only advances once per bar regardless of how many sets are active.</div>
+        <span class="task-action" onclick="event.stopPropagation();sendPrompt('Build the SMFNativeEngine per-bar cache fix')">Build this fix ↗</span>
+      </div>
+    </div>
+    <div class="task">
+      <div class="task-left"><div class="dot d-fix"></div></div>
+      <div class="task-content">
+        <div class="task-name">Reset SMFNativeEngine on session open</div>
+        <div class="task-file">HostStrategy.cs → OnSessionOpen() + SMF_Native.cs → SMFNativeBase.OnSessionOpen()</div>
+        <div class="task-desc">Add _engine.Reset() call in SMFNativeBase.OnSessionOpen(). Prior session ZLEMA bleeds into the next session's warm-up. The comment in the code already flags this — it just was never wired.</div>
+        <span class="task-action" onclick="event.stopPropagation();sendPrompt('Build the SMFNativeEngine session reset fix')">Build this fix ↗</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="phase" onclick="toggle(this)">
+  <div class="phase-header">
+    <span class="phase-badge p1-badge">Phase 1</span>
+    <span class="phase-title">Entry precision layer — FVG, IFVG, Order Block condition sets</span>
+    <span class="phase-meta">3 tasks</span>
+    <span class="chevron">▶</span>
+  </div>
+  <div class="phase-body">
+    <div class="task">
+      <div class="task-left"><div class="dot d-build"></div></div>
+      <div class="task-content">
+        <div class="task-name">Build complete IFVG condition set</div>
+        <div class="task-file">SMC_IFVG.cs → Evaluate() — replace stub</div>
+        <div class="task-desc">Detect standard FVG → wait for close beyond the gap → mark as inverted zone → fire entry on first retest touch with confirmation close. Use the existing FairValueGap struct from SMC_OrderFlow.cs. Requires delta confirmation (VolDeltaSl &gt; 0 for bull, VolDeltaSh &lt; 0 for bear). Stop below zone low (bull) / above zone high (bear). Score: 68 base + up to +12 delta/absorption bonus.</div>
+        <span class="task-action" onclick="event.stopPropagation();sendPrompt('Build the complete IFVG condition set in SMC_IFVG.cs')">Build this ↗</span>
+      </div>
+    </div>
+    <div class="task">
+      <div class="task-left"><div class="dot d-build"></div></div>
+      <div class="task-content">
+        <div class="task-name">Build Order Block entry condition set</div>
+        <div class="task-file">SMC_Signals.cs → SMC_OB.Evaluate()</div>
+        <div class="task-desc">ObZoneRegistry already detects and publishes OB zones to SnapKeys (ObBullActive, ObBullLow, ObBullHigh etc.) every bar. SMC_OB.Evaluate() just needs to read those keys and fire when price retests the zone with a confirming close + delta. Stop beyond zone opposite edge. Score: 70 base + proximity bonus from SR zone strength if OB aligns with swing level.</div>
+        <span class="task-action" onclick="event.stopPropagation();sendPrompt('Build the SMC_OB.Evaluate() entry logic reading ObZoneRegistry SnapKeys')">Build this ↗</span>
+      </div>
+    </div>
+    <div class="task">
+      <div class="task-left"><div class="dot d-fix"></div></div>
+      <div class="task-content">
+        <div class="task-name">Add session-scoped expiry to FVG and OB zones</div>
+        <div class="task-file">FvgZoneRegistry.cs + ObZoneRegistry.cs → OnSessionOpen()</div>
+        <div class="task-desc">FVG zones currently persist indefinitely. MAX_AGE_BARS = 200 on a 5-min chart = 16+ hours — crosses sessions. Add a session-open reset that clears zones older than the current RTH session. OB zones have the same issue. Intraday scalping context only — prior-session zones are not actionable.</div>
+        <span class="task-action" onclick="event.stopPropagation();sendPrompt('Add session-scoped expiry to FvgZoneRegistry and ObZoneRegistry')">Build this ↗</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="phase" onclick="toggle(this)">
+  <div class="phase-header">
+    <span class="phase-badge p2-badge">Phase 2</span>
+    <span class="phase-title">Complete structure signal layer — BOS, CHoCH, Wyckoff</span>
+    <span class="phase-meta">3 tasks</span>
+    <span class="chevron">▶</span>
+  </div>
+  <div class="phase-body">
+    <div class="task">
+      <div class="task-left"><div class="dot d-build"></div></div>
+      <div class="task-content">
+        <div class="task-name">Build SMC_BOS and SMC_CHoCH Evaluate() logic</div>
+        <div class="task-file">SMC_Signals.cs → SMC_BOS.Evaluate() + SMC_CHoCH.Evaluate()</div>
+        <div class="task-desc">StructuralLabeler already fires BOSFiredLong/Short and CHoCHFiredLong/Short into SnapKeys every bar. Both Evaluate() methods simply need to read those flags, apply cooldown, check delta confirmation via HasInstitutionalWeight() (already implemented in SMCBase), compute stop from last swing level, and emit the decision. BOS score: 72. CHoCH score: 75 (higher — reversal conviction). Both require ATR-minimum stop width.</div>
+        <span class="task-action" onclick="event.stopPropagation();sendPrompt('Build SMC_BOS.Evaluate() and SMC_CHoCH.Evaluate() reading SnapKeys BOS/CHoCH flags')">Build this ↗</span>
+      </div>
+    </div>
+    <div class="task">
+      <div class="task-left"><div class="dot d-build"></div></div>
+      <div class="task-content">
+        <div class="task-name">Build Wyckoff Spring and Upthrust Evaluate() logic</div>
+        <div class="task-file">Wyckoff_Signals.cs → Wyckoff_Spring.Evaluate() + Wyckoff_Upthrust.Evaluate()</div>
+        <div class="task-desc">BuildSpring() and BuildUpthrust() helpers are complete with delta confirmation. The concrete Evaluate() methods just need the detection logic: wick below PDL/VAL/structural low with close back above for Spring; mirror for Upthrust. Check snapshot.PrevDayLow, snapshot.Get(SnapKeys.VALow), and snapshot.Get(SnapKeys.LastSwingLow) as reference levels. Add ATR floor to proximity check for Globex low-ATR sessions.</div>
+        <span class="task-action" onclick="event.stopPropagation();sendPrompt('Build Wyckoff_Spring.Evaluate() and Wyckoff_Upthrust.Evaluate() using existing BuildSpring helpers')">Build this ↗</span>
+      </div>
+    </div>
+    <div class="task">
+      <div class="task-left"><div class="dot d-fix"></div></div>
+      <div class="task-content">
+        <div class="task-name">Build SMC_Session_Sweep — missing class</div>
+        <div class="task-file">New file: SMC_SessionSweep.cs</div>
+        <div class="task-desc">Referenced in CreateLogic() but does not exist. Concept: detect when price sweeps a prior session high/low (PDH/PDL or London H/L) with a wick and fails to hold — then fires in the opposite direction. Uses SweepDetector flags from tape + SupportResistanceResult for the level proximity check. Score: 68 base.</div>
+        <span class="task-action" onclick="event.stopPropagation();sendPrompt('Build the SMC_SessionSweep condition set')">Build this ↗</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="phase" onclick="toggle(this)">
+  <div class="phase-header">
+    <span class="phase-badge p3-badge">Phase 3</span>
+    <span class="phase-title">Confluence wiring — connect zones into SR engine and scoring</span>
+    <span class="phase-meta">3 tasks</span>
+    <span class="chevron">▶</span>
+  </div>
+  <div class="phase-body">
+    <div class="task">
+      <div class="task-left"><div class="dot d-wire"></div></div>
+      <div class="task-content">
+        <div class="task-name">Wire FVG and OB zones into SupportResistanceEngine merge pass</div>
+        <div class="task-file">SupportResistanceEngine.cs — add FvgLevelSource + ObLevelSource as source modules</div>
+        <div class="task-desc">Create two thin SRLevelFact emitters — one for FvgZoneRegistry, one for ObZoneRegistry — following the same pattern as VolumeProfileLevelSource. Register them in the engine constructor. Now when an FVG aligns with a H1 swing low or POC, they merge into one zone with combined Strength. This is what makes ConfluenceEngine Layer B see zone confluence rather than treating them as independent facts.</div>
+        <span class="task-action" onclick="event.stopPropagation();sendPrompt('Build FvgLevelSource and ObLevelSource emitters and wire into SupportResistanceEngine')">Build this ↗</span>
+      </div>
+    </div>
+    <div class="task">
+      <div class="task-left"><div class="dot d-wire"></div></div>
+      <div class="task-content">
+        <div class="task-name">Wire CVD divergence into ConfluenceEngine Layer C</div>
+        <div class="task-file">ConfluenceEngine.cs — Layer C, activate LAYER_C_DIVERGENCE = 15</div>
+        <div class="task-desc">FootprintDivergenceTracker correctly detects and publishes BullDivergence/BearDivergence to SnapKeys. The constant LAYER_C_DIVERGENCE = 15 is defined but the scoring code is commented out with "untested weights." Activate it. This is the highest-value Layer C weight and it corresponds to the strongest signal of institutional accumulation/distribution.</div>
+        <span class="task-action" onclick="event.stopPropagation();sendPrompt('Activate CVD divergence scoring in ConfluenceEngine Layer C')">Build this ↗</span>
+      </div>
+    </div>
+    <div class="task">
+      <div class="task-left"><div class="dot d-wire"></div></div>
+      <div class="task-content">
+        <div class="task-name">Fix FootprintDivergenceTracker session reset</div>
+        <div class="task-file">HostStrategy.cs → OnSessionOpen() + FootprintDivergenceTracker.Reset()</div>
+        <div class="task-desc">_divTracker.Reset() exists but is never called from OnSessionOpen(). Stale divergence flags from prior session persist into the first bars of the new session. One-line fix in HostStrategy.OnSessionOpen().</div>
+        <span class="task-action" onclick="event.stopPropagation();sendPrompt('Add FootprintDivergenceTracker.Reset() call in HostStrategy.OnSessionOpen()')">Build this ↗</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="phase" onclick="toggle(this)">
+  <div class="phase-header">
+    <span class="phase-badge p4-badge">Phase 4</span>
+    <span class="phase-title">Build the hybrid entry condition set — the actual strategy</span>
+    <span class="phase-meta">2 tasks</span>
+    <span class="chevron">▶</span>
+  </div>
+  <div class="phase-body">
+
+    <div class="signal-chain">
+      <div class="signal-chain-title">Target hybrid signal chain</div>
+      <div class="chain">
+        <span class="chain-step cs-cat">H4/H1 bias aligned</span>
+        <span class="chain-arrow">→</span>
+        <span class="chain-step cs-cat">CHoCH or BOS fires</span>
+        <span class="chain-arrow">→</span>
+        <span class="chain-step cs-cat">Price pulls into FVG or OB zone</span>
+        <span class="chain-arrow">→</span>
+        <span class="chain-step cs-cat">Delta + absorption confirm</span>
+        <span class="chain-arrow">→</span>
+        <span class="chain-step cs-cat">Not at adverse SR zone</span>
+        <span class="chain-arrow">→</span>
+        <span class="chain-step cs-cat">ENTRY at zone with tight stop</span>
+      </div>
+    </div>
+
+    <div class="task">
+      <div class="task-left"><div class="dot d-build"></div></div>
+      <div class="task-content">
+        <div class="task-name">Build HybridScalp_v1 sequenced condition set</div>
+        <div class="task-file">New file: HybridScalp.cs</div>
+        <div class="task-desc">A single IConditionSet that combines all layers in sequence. State machine: (1) Wait for CHoCH or BOS flag in SnapKeys. (2) Set directional bias and arm a zone-entry window (max 10 bars). (3) Within that window, check if price has retraced into an active FVG or OB zone (read ObBullActive/FvgBullActive from SnapKeys). (4) On retracement bar: require BarDelta aligned + AbsorptionScore &gt; 30. (5) Require SupportResistanceResult shows no adverse zone within 0.3×ATR. (6) Emit entry at zone midpoint, stop below zone low (bull) or above zone high (bear), T1 = prior swing high (bull), T2 = 2×ATR. Score: 78 base + confluence bonuses up to 92. Window expires if price makes a new swing in the opposite direction.</div>
+        <span class="task-action" onclick="event.stopPropagation();sendPrompt('Build the HybridScalp_v1 sequenced CHoCH/BOS to FVG/OB zone entry condition set')">Build this ↗</span>
+      </div>
+    </div>
+    <div class="task">
+      <div class="task-left"><div class="dot d-wire"></div></div>
+      <div class="task-content">
+        <div class="task-name">Register all sets in CreateLogic() with defined priority order</div>
+        <div class="task-file">HostStrategy.cs → CreateLogic()</div>
+        <div class="task-desc">Uncomment in this specific order (priority high to low): HybridScalp_v1, SMF_Native_Impulse, SMF_Native_BandReclaim, SMF_Native_Retest, SMC_BOS, Wyckoff_Spring, Wyckoff_Upthrust, FailedAuction, ORB_Classic, VWAP_RTH, EMA_Cross, ADX_Trend. ORB_Measure always registered (instrumentation). SMC_IFVG and SMC_OB register separately — they complement HybridScalp but can also fire independently. Document the ordering rationale as a comment block — it is implicit priority, not accident.</div>
+        <span class="task-action" onclick="event.stopPropagation();sendPrompt('Build the complete CreateLogic() registration with all sets in priority order')">Build this ↗</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="phase" onclick="toggle(this)">
+  <div class="phase-header">
+    <span class="phase-badge p5-badge">Phase 5</span>
+    <span class="phase-title">Validate, calibrate, go-live</span>
+    <span class="phase-meta">5 tasks</span>
+    <span class="chevron">▶</span>
+  </div>
+  <div class="phase-body">
+    <div class="task">
+      <div class="task-left"><div class="dot d-validate"></div></div>
+      <div class="task-content">
+        <div class="task-name">Run per-set forward return analysis</div>
+        <div class="task-file">ForwardReturnTracker.cs + PerSetPerformanceTracker.cs — analyse CSV output</div>
+        <div class="task-desc">ForwardReturnTracker captures 12-bar MAE/MFE from every signal bar. Run a full backtest. Filter CSV by TOUCH_OUTCOME rows. For each condition set: plot MFE distribution, win rate, average R-multiple. Any set with &lt;40% win rate and negative expectancy after 30+ signals gets disabled. Use this data to recalibrate ConfluenceEngine layer weights — they are currently educated guesses.</div>
+      </div>
+    </div>
+    <div class="task">
+      <div class="task-left"><div class="dot d-validate"></div></div>
+      <div class="task-content">
+        <div class="task-name">Validate and enable FootprintTradeAdvisor exits</div>
+        <div class="task-file">OrderManager.cs — TRADE_ADVISOR_COMPARE_ONLY protocol</div>
+        <div class="task-desc">Run 3 weeks with COMPARE_ONLY = true. Pull STOP_MOVE rows from CSV. For each, compute conviction/volRatio/efficiency from the matching FLOW row. Label as "premature" (trade continued profitably) vs "correct." Plot distributions. Set thresholds at the separation point. Only flip COMPARE_ONLY = false after this is complete.</div>
+      </div>
+    </div>
+    <div class="task">
+      <div class="task-left"><div class="dot d-validate"></div></div>
+      <div class="task-content">
+        <div class="task-name">Enable risk-based position sizing</div>
+        <div class="task-file">OrderManager.cs → USE_FIXED_SIZE_ONE = false</div>
+        <div class="task-desc">Only after exit thresholds are validated. Set RiskPct = 0.01 (1% per trade). Verify MaxContracts cap is set correctly for your account size. Run one week in paper trading to confirm sizing math is not producing edge cases (zero contracts on wide stops, over-sizing on tight stops). Then go live with sizing enabled.</div>
+      </div>
+    </div>
+    <div class="task">
+      <div class="task-left"><div class="dot d-validate"></div></div>
+      <div class="task-content">
+        <div class="task-name">Walk-forward validation</div>
+        <div class="task-file">No existing infrastructure — manual WFO using NT8 strategy analyzer</div>
+        <div class="task-desc">Run 3-month rolling WFO: 2 months in-sample, 1 month out-of-sample. Minimum 3 windows before any live deployment. If out-of-sample performance degrades more than 40% vs in-sample, the strategy is overfit to the training period — revisit parameter selection. Key parameters to test: ConfluenceEngine score floor, FVG/OB zone age limits, ATR trail factors.</div>
+      </div>
+    </div>
+    <div class="task">
+      <div class="task-left"><div class="dot d-infra"></div></div>
+      <div class="task-content">
+        <div class="task-name">Remove debug artifacts before live deployment</div>
+        <div class="task-file">DataFeed.cs — remove ORB_VP_DIAG Print() call · UIRenderer.cs — fix SetZones() array copy bug · HostStrategy.cs — confirm advisor logging is active</div>
+        <div class="task-desc">Three production hygiene tasks: (1) Remove the Print("ORB_VP_DIAG...") line that fires every session. (2) Fix UIRenderer.SetZones() to copy into pre-allocated array rather than replacing the reference. (3) Confirm FootprintEntryAdvisor decisions are being logged to CSV before going live — without that you cannot audit false rejections.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+<script>
+function toggle(el){
+  if(el.classList.contains('phase')) el.classList.toggle('open');
+}
+</script>

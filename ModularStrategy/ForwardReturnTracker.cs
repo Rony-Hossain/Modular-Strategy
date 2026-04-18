@@ -115,9 +115,13 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
                 string firstHit = null;
                 double exitPrice = 0.0;
+                bool isBoth = false;
+
                 if (stopHit && targetHit) {
                     firstHit  = "BOTH_SAMEBAR";
-                    exitPrice = t.StopPrice;   // conservative — assume stop
+                    isBoth    = true;
+                    // Fair 50/50 — simulated price is the average of target and stop
+                    exitPrice = (t.TargetPrice + t.StopPrice) / 2.0;
                 } else if (stopHit) {
                     firstHit  = "STOP";
                     exitPrice = t.StopPrice;
@@ -132,8 +136,9 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                 if (firstHit != null || expiredByBars || expiredBySession)
                 {
                     // Compute SimPnL, bars-to-hit, closeAtWindowEnd.
-                    int hitStop   = firstHit == "STOP"   || firstHit == "BOTH_SAMEBAR" ? 1 : 0;
-                    int hitTarget = firstHit == "TARGET"                               ? 1 : 0;
+                    // BOTH_SAMEBAR is no longer counted as a binary STOP hit.
+                    int hitStop   = firstHit == "STOP"   ? 1 : 0;
+                    int hitTarget = firstHit == "TARGET" ? 1 : 0;
                     double simPnL;
                     int barsToHit;
                     double closeEnd = close;

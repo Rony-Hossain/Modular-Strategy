@@ -51,8 +51,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         private const int LAYER_C_IMBAL_ZONE  =  6;  // price at historical imbalance zone
         private const int LAYER_C_TRAPPED_AGREE = 8;   // trapped flag on opposite side confirms direction
         private const int LAYER_C_ICEBERG_AGREE = 8;   // iceberg flag on SAME side confirms direction
-        private const int LAYER_C_EXHAUSTION_AGREE = 8;   // opposite-side exhaustion confirms direction
-        private const int LAYER_C_UNFINISHED_AGREE = 4;   // target-side magnet — lighter, no veto
+        private const int LAYER_C_EXHAUSTION_AGREE =  8;   // opposite-side exhaustion confirms direction
+        private const int LAYER_C_UNFINISHED_AGREE =  4;   // target-side magnet — lighter, no veto
+        // Phase 3.7: same-side bonuses removed after autopsy showed they elevated low-quality longs.
+        // Sweep-opposition veto retained below. Other tape flags read but not scored.
 
         // ── Layer D weights (Price action trigger) ────────────────────────
         private const int LAYER_D_FULL_STRUCT = 12;  // HH+HL or LH+LL confirmed
@@ -62,6 +64,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         private const int PENALTY_H4 =  8;
         private const int PENALTY_H2 =  5;
         private const int PENALTY_BOTH_EXTRA = 5;    // stacks when both oppose
+
+        // Phase 3.9 (2026-04-16) REVERTED — sweep-chase penalty on same-side
+        // sweep regressed net $2.4K via ranker cascade effects. The direct filter
+        // removed 2 swp+ long losers as intended, but NetScore shifts on surviving
+        // signals re-ordered competing candidates and pulled in worse trades.
+        // Lesson: small-sample (25 trades) tape-based penalties can't be shipped
+        // without cross-window validation. See phase3_10 research notes.
 
         // =================================================================
         public static ConfluenceResult Evaluate(bool isLong, MarketSnapshot snap,
@@ -143,10 +152,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 
             // CONSERVATIVE FIX:
             // Use the existing fallback proxies for ALL candidates regardless 
-            // of hasVol. Max possible: ~22 pts. The original Layer C constants 
-            // (LAYER_C_DIVERGENCE=15, etc., lines 47-51) remain defined but 
-            // unused — they were untested weights and we won't wire them 
-            // until forward-return data validates them.
+            // of hasVol. Max possible: ~37 pts (22 proxy + 15 divergence).
+            // LAYER_C_DIVERGENCE activated; remaining constants (DELTA_SL,
+            // ABS_MAX, DELTA_EXHST, IMBAL_ZONE) still unwired pending validation.
 
             // BarDelta from DataFeed (always populated)
             double bd = snap.Get(SnapKeys.BarDelta);
@@ -170,6 +178,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool h1Rising = snap.Higher1.Close > snap.Higher1.Closes[1];
                 if ((isLong && h1Rising) || (!isLong && !h1Rising)) layerC += 4;
             }
+
+            // ── CVD Divergence agreement ────────────────────────────────────
+            // BullDivergence (price lower low, CVD higher low = hidden buying) confirms LONG.
+            // BearDivergence (price higher high, CVD lower high = hidden selling) confirms SHORT.
+            // Opposition side is already a veto (Phase 1.1). This adds the confirmation bonus.
+            if ( isLong && snap.GetFlag(SnapKeys.BullDivergence)) layerC += LAYER_C_DIVERGENCE;
+            if (!isLong && snap.GetFlag(SnapKeys.BearDivergence)) layerC += LAYER_C_DIVERGENCE;
 
             // ── Trapped Traders agreement (Phase 2.7) ───────────────────────
             // Long is confirmed when SHORTS were trapped at a low (their exit flow
@@ -207,6 +222,18 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if ( isLong && unfinTopFlag   ) layerC += LAYER_C_UNFINISHED_AGREE;
             if (!isLong && unfinBottomFlag) layerC += LAYER_C_UNFINISHED_AGREE;
+
+            // Phase 3.7 — tape flags read here for veto use below and autopsy tagging.
+            // Same-side scoring bonuses were removed after autopsy showed they elevated
+            // low-quality longs. Flags retained for Sweep-opposition veto and Phase 3.9
+            // diagnostic tags (bp±, vel±, swp±, tice±) — no scoring effect, data only.
+            bool buySweepFlag    = snap.GetFlag(SnapKeys.BuySweep);
+            bool sellSweepFlag   = snap.GetFlag(SnapKeys.SellSweep);
+            double bpDelta       = snap.Get(SnapKeys.BigPrintDelta);
+            bool velBuyFlag      = snap.GetFlag(SnapKeys.VelocityBuySpike);
+            bool velSellFlag     = snap.GetFlag(SnapKeys.VelocitySellSpike);
+            bool tapeBullIceFlag = snap.GetFlag(SnapKeys.TapeBullIceberg);
+            bool tapeBearIceFlag = snap.GetFlag(SnapKeys.TapeBearIceberg);
 
             // SMF NonConfirmation veto
             if (isLong  && snap.GetFlag(SnapKeys.NonConfLong))  isVetoed = true;
@@ -263,6 +290,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             // trading into absorbed support.
             if ( isLong && bearIcebergFlag) { isVetoed = true; }
             if (!isLong && bullIcebergFlag) { isVetoed = true; }
+
+            // Phase 3.7 — Sweep opposition veto
+            // Buy sweep during a short signal = live buying pressure walking up the book.
+            // Sell sweep during a long signal = live selling pressure walking down.
+            // Sweep is rare (≥3 levels in 200ms) — binary veto is appropriate.
+            if ( isLong && sellSweepFlag) { isVetoed = true; }
+            if (!isLong && buySweepFlag ) { isVetoed = true; }
 
             // Phase 2.9 Exhaustion opposition veto was REMOVED (2026-04-15).
             // The binary veto on a 5–15% fire-rate signal killed valid short-
@@ -396,10 +430,25 @@ namespace NinjaTrader.NinjaScript.Strategies
                     bool above = p.Close > snap.VWAP;
                     if ((isLong && above) || (!isLong && !above)) sb.Append("vwap+");
                 }
+                if ((isLong && snap.GetFlag(SnapKeys.BullDivergence)) || (!isLong && snap.GetFlag(SnapKeys.BearDivergence))) sb.Append("div+");
                 if ((isLong && trapShortsFlag) || (!isLong && trapLongsFlag)) sb.Append("trap+");
                 if ((isLong && bullIcebergFlag) || (!isLong && bearIcebergFlag)) sb.Append("ice+");
                 if ((isLong && bearExhFlag)    || (!isLong && bullExhFlag))    sb.Append("exh+");
                 if ((isLong && unfinTopFlag)   || (!isLong && unfinBottomFlag)) sb.Append("unf+");
+
+                // Phase 3.9 tape diagnostic tags — data only, no scoring effect.
+                // Same-side (+) = tape flow aligned with trade direction.
+                // Opposite-side (-) = tape flow opposing trade direction.
+                // swp- is redundant with vSWP (same event vetoes the trade) but kept for symmetry.
+                if ((isLong && bpDelta > 0)      || (!isLong && bpDelta < 0))       sb.Append("bp+");
+                if ((isLong && bpDelta < 0)      || (!isLong && bpDelta > 0))       sb.Append("bp-");
+                if ((isLong && velBuyFlag)       || (!isLong && velSellFlag))       sb.Append("vel+");
+                if ((isLong && velSellFlag)      || (!isLong && velBuyFlag))        sb.Append("vel-");
+                if ((isLong && buySweepFlag)     || (!isLong && sellSweepFlag))     sb.Append("swp+");
+                if ((isLong && sellSweepFlag)    || (!isLong && buySweepFlag))      sb.Append("swp-");
+                if ((isLong && tapeBullIceFlag)  || (!isLong && tapeBearIceFlag))   sb.Append("tice+");
+                if ((isLong && tapeBearIceFlag)  || (!isLong && tapeBullIceFlag))   sb.Append("tice-");
+
                 if (snap.GetFlag(SnapKeys.NonConfLong) || snap.GetFlag(SnapKeys.NonConfShort)) sb.Append("ncVETO");
             }
 
@@ -411,6 +460,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (cd > CUMDELTA_EXHAUSTED && sbullCnt < WEAK_STACK_COUNT) sb.Append("vEXHL");
                 if (trapLongsFlag) sb.Append("vTRAP");
                 if (bearIcebergFlag) sb.Append("vICE");
+                if (sellSweepFlag) sb.Append("vSWP");
             }
             else
             {
@@ -419,6 +469,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (cd < -CUMDELTA_EXHAUSTED && sbearCnt < WEAK_STACK_COUNT) sb.Append("vEXHS");
                 if (trapShortsFlag) sb.Append("vTRAP");
                 if (bullIcebergFlag) sb.Append("vICE");
+                if (buySweepFlag) sb.Append("vSWP");
             }
 
             // LayerD reasons

@@ -26,11 +26,16 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         private int    _warmupBars = 0;
         private const int WARMUP_REQUIRED = 34;
 
+        private int    _lastBarIndex = -1;
+        private double _cachedBasis;
+        private double _cachedSignal;
+
         public void Reset()
         {
             _prevBasis = double.NaN;
             _prevSignal = 0.0;
             _warmupBars = 0;
+            _lastBarIndex = -1;
         }
 
         public void Update(MarketSnapshot snap, out double basis, out double signal)
@@ -38,6 +43,15 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             basis = 0.0;
             signal = 0.0;
             if (!snap.IsValid) return;
+
+            int barIndex = snap.Primary.CurrentBar;
+            if (barIndex == _lastBarIndex)
+            {
+                basis  = _cachedBasis;
+                signal = _cachedSignal;
+                return;
+            }
+            _lastBarIndex = barIndex;
 
             var p = snap.Primary;
             double close = p.Close;
@@ -58,7 +72,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                 _warmupBars++;
             }
 
-            if (_warmupBars < WARMUP_REQUIRED) return;
+            if (_warmupBars < WARMUP_REQUIRED) { _cachedBasis = basis; _cachedSignal = signal; return; }
 
             // Signal logic (Simplified SMF Cloud bias)
             if (close > basis)      signal = 1.0;  // Bullish
@@ -66,6 +80,8 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             else                    signal = _prevSignal;
 
             _prevSignal = signal;
+            _cachedBasis  = basis;
+            _cachedSignal = signal;
         }
     }
 
@@ -95,7 +111,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         public void OnSessionOpen(MarketSnapshot snapshot)
         {
             _lastSignalBar = -1;
-            // Engine is shared, Host resets it separately if needed
+            _engine.Reset();
         }
 
         public void OnFill(SignalObject signal, double fillPrice)
@@ -129,19 +145,36 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             double basis, signal;
             _engine.Update(snapshot, out basis, out signal);
 
-            if (signal != 0 && signal != _prevSignal && IsRTH(snapshot.Primary))
+            bool isRTH = IsRTH(snapshot.Primary);
+            double atr = snapshot.ATR > 0 ? snapshot.ATR : _tickSize * 10;
+            double entry = snapshot.Primary.Close;
+            double stop = signal > 0 ? basis - atr * 0.5 : basis + atr * 0.5;
+
+            if (signal != 0 && signal != _prevSignal)
             {
                 _prevSignal = signal;
-                double atr = snapshot.ATR > 0 ? snapshot.ATR : _tickSize * 10;
                 
+                if (!isRTH)
+                {
+                    return new RawDecision
+                    {
+                        Direction = signal > 0 ? SignalDirection.Long : SignalDirection.Short,
+                        Source = SignalSource.SMF_Impulse,
+                        EntryPrice = entry,
+                        StopPrice = stop,
+                        Label = "REJ:SMF NonRTH",
+                        IsValid = false
+                    };
+                }
+
                 return new RawDecision
                 {
                     Direction = signal > 0 ? SignalDirection.Long : SignalDirection.Short,
                     Source    = SignalSource.SMF_Impulse,
-                    EntryPrice = snapshot.Primary.Close,
-                    StopPrice  = signal > 0 ? basis - atr * 0.5 : basis + atr * 0.5,
-                    TargetPrice = signal > 0 ? snapshot.Primary.Close + atr * 1.5 : snapshot.Primary.Close - atr * 1.5,
-                    Target2Price = signal > 0 ? snapshot.Primary.Close + atr * 3.0 : snapshot.Primary.Close - atr * 3.0,
+                    EntryPrice = entry,
+                    StopPrice  = stop,
+                    TargetPrice = signal > 0 ? entry + atr * 1.5 : entry - atr * 1.5,
+                    Target2Price = signal > 0 ? entry + atr * 3.0 : entry - atr * 3.0,
                     Label     = $"SMF[N] Impulse {(signal > 0 ? "bull" : "bear")}",
                     RawScore  = 72,
                     IsValid   = true,
@@ -170,10 +203,18 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             double atr = snapshot.ATR > 0 ? snapshot.ATR : _tickSize * 10;
             double upper = basis + atr * 2.0;
             double lower = basis - atr * 2.0;
+            bool isRTH = IsRTH(p);
 
             // Bullish reclaim: Price was below lower band, now closes above it
-            if (p.Low < lower && p.Close > lower && signal > 0 && IsRTH(p))
+            if (p.Low < lower && p.Close > lower)
             {
+                if (signal <= 0) return RawDecision.None; // Regime must be bull
+
+                if (!isRTH)
+                {
+                    return new RawDecision { Direction = SignalDirection.Long, Label = "REJ:SMF NonRTH", IsValid = false, EntryPrice = p.Close, StopPrice = p.Low - _tickSize*2 };
+                }
+
                 return new RawDecision
                 {
                     Direction = SignalDirection.Long,
@@ -190,8 +231,15 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             }
 
             // Bearish reclaim: Price was above upper band, now closes below it
-            if (p.High > upper && p.Close < upper && signal < 0 && IsRTH(p))
+            if (p.High > upper && p.Close < upper)
             {
+                if (signal >= 0) return RawDecision.None; // Regime must be bear
+
+                if (!isRTH)
+                {
+                    return new RawDecision { Direction = SignalDirection.Short, Label = "REJ:SMF NonRTH", IsValid = false, EntryPrice = p.Close, StopPrice = p.High + _tickSize*2 };
+                }
+
                 return new RawDecision
                 {
                     Direction = SignalDirection.Short,
@@ -226,10 +274,16 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
             var p = snapshot.Primary;
             double atr = snapshot.ATR > 0 ? snapshot.ATR : _tickSize * 10;
+            bool isRTH = IsRTH(p);
 
             // Bullish Retest: Price pulls back to basis while signal is bullish
-            if (signal > 0 && p.Low <= basis + _tickSize * 2 && p.Close > basis && IsRTH(p))
+            if (signal > 0 && p.Low <= basis + _tickSize * 2 && p.Close > basis)
             {
+                if (!isRTH)
+                {
+                    return new RawDecision { Direction = SignalDirection.Long, Label = "REJ:SMF NonRTH", IsValid = false, EntryPrice = p.Close, StopPrice = basis - atr*0.5 };
+                }
+
                 return new RawDecision
                 {
                     Direction = SignalDirection.Long,
@@ -246,8 +300,13 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             }
 
             // Bearish Retest: Price pulls back to basis while signal is bearish
-            if (signal < 0 && p.High >= basis - _tickSize * 2 && p.Close < basis && IsRTH(p))
+            if (signal < 0 && p.High >= basis - _tickSize * 2 && p.Close < basis)
             {
+                if (!isRTH)
+                {
+                    return new RawDecision { Direction = SignalDirection.Short, Label = "REJ:SMF NonRTH", IsValid = false, EntryPrice = p.Close, StopPrice = basis + atr*0.5 };
+                }
+
                 return new RawDecision
                 {
                     Direction = SignalDirection.Short,

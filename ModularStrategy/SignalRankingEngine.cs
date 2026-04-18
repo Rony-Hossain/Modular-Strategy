@@ -40,6 +40,20 @@ namespace NinjaTrader.NinjaScript.Strategies
         // Scaled by SetVolumetricMode() each bar
         private int _minNetScore = 25;
 
+        /// <summary>
+        /// Confluence Detail string of the last winning candidate (from the winner's
+        /// ConfluenceResult). HostStrategy reads this after Rank() and passes it to
+        /// SignalGenerator.Process so the tags land in the SIGNAL_ACCEPTED CSV row.
+        /// Empty when Rank returned RawDecision.None.
+        /// </summary>
+        public string LastWinnerDetail { get; private set; } = "";
+
+        /// <summary>
+        /// Captures all candidates that were discarded during Rank().
+        /// Re-populated every bar. HostStrategy reads this to show gray "REJ" bubbles.
+        /// </summary>
+        public System.Collections.Generic.List<RawDecision> Rejections { get; } = new System.Collections.Generic.List<RawDecision>(16);
+
         private StrategyLogger _log;
 
         public SignalRankingEngine(StrategyLogger log)
@@ -72,6 +86,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             MarketSnapshot snap,
             in SupportResistanceResult sr)
         {
+            LastWinnerDetail = "";
+            Rejections.Clear();
             if (count == 0 || candidateBuffer == null) return RawDecision.None;
 
             int rankedCount = 0;
@@ -135,19 +151,30 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // ── PERFORMANCE TUNING: Macro Regime Gate ──────────────────
                 // FIX (#Layer4): Align Longs with the H4 macro anchor.
-                // If Long signal fires while H4 bias is Bearish, increase floor to 60.
-                // REFINEMENT (Commit 7): If H4 bias is Undefined (0.0), increase floor to 70.
+                // CHANGE (Phase 3.11): Reduced floors from 60/70 to 35/40.
+                // Problem: floor=60 was impossible for EMA (max raw=78, needs
+                // multiplier >0.77 which requires ~30+ confluence) and SMC
+                // (raw=60, impossible at any multiplier). Data showed 0 SMC
+                // longs ever traded; EMA longs only passed when H4 was bullish.
+                // 142 SMC touches and 237 EMA long touches were all killed.
+                // New floors still penalize counter-H4 longs (must clear 35/40
+                // instead of default 25) but don't make it mathematically
+                // impossible. ConfluenceEngine vetos still block truly bad setups.
                 bool isORB = (candidate.ConditionSetId ?? "").StartsWith("ORB_");
                 if (isLong && !isORB)
                 {
                     double h4b = snap.Get(SnapKeys.H4HrEmaBias);
-                    if (h4b < 0) effectiveFloor = Math.Max(effectiveFloor, 60);
-                    else if (h4b == 0) effectiveFloor = Math.Max(effectiveFloor, 70);
+                    if (h4b < 0) effectiveFloor = Math.Max(effectiveFloor, 35);
+                    else if (h4b == 0) effectiveFloor = Math.Max(effectiveFloor, 40);
                 }
 
                 // ── VETO: discard immediately ──────────────────────────────
                 if (conf.IsVetoed)
                 {
+                    candidate.RawScore = (int)(candidate.RawScore * conf.Multiplier);
+                    candidate.Label = "VETO";
+                    Rejections.Add(candidate);
+
                     _log?.Warn(barTime,
                         "RANK_VETO [{0}] {1} conf={2}",
                         candidate.ConditionSetId,
@@ -159,6 +186,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // ── NET SCORE FLOOR: discard weak confluence ───────────────
                 if (conf.NetScore < effectiveFloor)
                 {
+                    candidate.RawScore = (int)(candidate.RawScore * conf.Multiplier);
+                    candidate.Label = string.Format("WEAK {0}/{1}", conf.NetScore, effectiveFloor);
+                    Rejections.Add(candidate);
+
                     _log?.Warn(barTime,
                         "RANK_WEAK [{0}] {1}",
                         candidate.ConditionSetId,
@@ -209,6 +240,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _ranked[winIdx].Confluence.ToDetailString(),
                 _ranked[winIdx].FinalScore);
 
+            LastWinnerDetail = _ranked[winIdx].Confluence.Detail ?? "";
             return _ranked[winIdx].Decision;
         }
 

@@ -607,6 +607,56 @@ namespace MathLogic
         /// </summary>
         public const string UnfinishedBottom = "UnfinishedBottom";
 
+        // ── Phase 3.7 Tape Signals (BigPrint / Velocity / Sweep / TapeIceberg) ──
+
+        /// <summary>
+        /// Net institutional directional pressure in last 30s.
+        /// buyVol - sellVol across ticks that exceeded p95 size threshold.
+        /// Positive = buyers net-aggressive; negative = sellers.
+        /// Zero during tape warmup or quiet tape.
+        /// </summary>
+        public const string BigPrintDelta = "BigPrintDelta";
+
+        /// <summary>Aggregate Buy-side BigPrint volume in last 30s (double).</summary>
+        public const string BigPrintBuyVol = "BigPrintBuyVol";
+
+        /// <summary>Aggregate Sell-side BigPrint volume in last 30s (double).</summary>
+        public const string BigPrintSellVol = "BigPrintSellVol";
+
+        /// <summary>
+        /// 1.0 when last 1s buy volume > 3× its 20-sample EMA baseline.
+        /// Confirms LONG. Resets within milliseconds after the burst.
+        /// </summary>
+        public const string VelocityBuySpike = "VelocityBuySpike";
+
+        /// <summary>1.0 when last 1s sell volume > 3× EMA. Confirms SHORT.</summary>
+        public const string VelocitySellSpike = "VelocitySellSpike";
+
+        /// <summary>
+        /// 1.0 when buy aggressors traversed ≥3 distinct price levels in ≤200ms.
+        /// Confirms LONG. Vetoes SHORT (active buying into a short setup).
+        /// </summary>
+        public const string BuySweep = "BuySweep";
+
+        /// <summary>
+        /// 1.0 when sell aggressors traversed ≥3 levels in ≤200ms.
+        /// Confirms SHORT. Vetoes LONG.
+        /// </summary>
+        public const string SellSweep = "SellSweep";
+
+        /// <summary>
+        /// 1.0 when a tape-level bull iceberg is active: repeated SELL aggressors
+        /// at the same price (hidden buyer absorbing at bid). Confirms LONG.
+        /// Independent of bar-level BullIceberg (Phase 2.4/2.8).
+        /// </summary>
+        public const string TapeBullIceberg = "TapeBullIceberg";
+
+        /// <summary>
+        /// 1.0 when a tape-level bear iceberg is active: repeated BUY aggressors
+        /// at the same price (hidden seller absorbing at ask). Confirms SHORT.
+        /// </summary>
+        public const string TapeBearIceberg = "TapeBearIceberg";
+
         // ── Volumetric Bars keys ─────────────────────────────────────────
         // Populated from AddVolumetric() BarsType. Works in BOTH backtest
         // and live (unlike the GetCurrentAskVolume path which is broken in

@@ -130,26 +130,26 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                     _lastBailReason = $"long_no_touch L={p.Low:F2} H={p.High:F2} band=[{bandLo:F2},{bandHi:F2}]"; 
                     return RawDecision.None; 
                 }
+
+                // If we touched the zone but delta is wrong, it's a visible rejection
                 if (barDelta <= 0)
                 { 
                     _lastBailReason = $"long_delta_neg bd={barDelta:F0} (soft_skip)"; 
-                    return RawDecision.None; 
+                    return new RawDecision
+                    {
+                        Direction = SignalDirection.Long,
+                        Source = SignalSource.ORB_Retest,
+                        ConditionSetId = SetId,
+                        EntryPrice = p.Close,
+                        Label = "REJ:ORB Delta",
+                        IsValid = false
+                    };
                 }
 
                 double stopDistance = Math.Max(100.0 * _tickSize, 1.0 * atr);
                 double entryPrice   = p.Close;
                 double stopPrice    = entryPrice - stopDistance;
                 double targetPrice  = entryPrice + stopDistance;
-
-                if (_log != null)
-                {
-                    string signalId = string.Format("{0}:{1:yyyyMMdd_HHmmss}:{2}", SetId, p.Time, p.CurrentBar);
-                    _log.LogTouchEvent(
-                        signalId, SetId, SignalDirection.Long,
-                        entryPrice, bandLo, bandHi,
-                        stopPrice, targetPrice,
-                        "ORB_VALUE", p.Time, snapshot);
-                }
 
                 _lastBailReason = "FIRED_LONG";
                 return new RawDecision
@@ -178,26 +178,26 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                     _lastBailReason = $"short_no_touch L={p.Low:F2} H={p.High:F2} band=[{bandLo:F2},{bandHi:F2}]"; 
                     return RawDecision.None; 
                 }
+
+                // If we touched the zone but delta is wrong, it's a visible rejection
                 if (barDelta >= 0)
                 { 
                     _lastBailReason = $"short_delta_pos bd={barDelta:F0} (soft_skip)"; 
-                    return RawDecision.None; 
+                    return new RawDecision
+                    {
+                        Direction = SignalDirection.Short,
+                        Source = SignalSource.ORB_Retest,
+                        ConditionSetId = SetId,
+                        EntryPrice = p.Close,
+                        Label = "REJ:ORB Delta",
+                        IsValid = false
+                    };
                 }
 
                 double stopDistance = Math.Max(100.0 * _tickSize, 1.0 * atr);
                 double entryPrice   = p.Close;
                 double stopPrice    = entryPrice + stopDistance;
                 double targetPrice  = entryPrice - stopDistance;
-
-                if (_log != null)
-                {
-                    string signalId = string.Format("{0}:{1:yyyyMMdd_HHmmss}:{2}", SetId, p.Time, p.CurrentBar);
-                    _log.LogTouchEvent(
-                        signalId, SetId, SignalDirection.Short,
-                        entryPrice, bandLo, bandHi,
-                        stopPrice, targetPrice,
-                        "ORB_VALUE", p.Time, snapshot);
-                }
 
                 _lastBailReason = "FIRED_SHORT";
                 return new RawDecision

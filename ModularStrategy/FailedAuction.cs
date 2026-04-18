@@ -80,7 +80,9 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
     public class FailedAuction : IConditionSet
     {
         public string SetId => "FailedAuction_v1";
-        public string LastDiagnostic => "";
+        public string LastDiagnostic => _lastBailReason;
+
+        private string _lastBailReason = "";
 
         // ── Instrument params ─────────────────────────────────────────────
         private double _tickSize;
@@ -144,14 +146,11 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (p.Highs == null || p.Highs.Length < LOOKBACK) return RawDecision.None;
             if (p.Lows  == null || p.Lows.Length  < LOOKBACK) return RawDecision.None;
 
-            // RTH gate
-            if (p.Session != SessionPhase.EarlySession &&
-                p.Session != SessionPhase.MidSession   &&
-                p.Session != SessionPhase.LateSession)  return RawDecision.None;
-
             // Re-entry suppression
             if (_lastFillBar > 0 && p.CurrentBar - _lastFillBar < REENTRY_BARS)
-                return RawDecision.None;
+            {
+                return new RawDecision { Direction = SignalDirection.None, Label = "REJ:FA Cooldown", IsValid = false };
+            }
 
             double barDelta = snapshot.Get(SnapKeys.BarDelta);
             double deltaSh  = snapshot.Get(SnapKeys.VolDeltaSh);
@@ -171,12 +170,12 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (_failedHigh > 0)
             {
                 var r = TryShortReturn(p, atr, snapshot);
-                if (r.IsValid) return r;
+                if (r.IsValid || r.Direction != SignalDirection.None) return r;
             }
             if (_failedLow > 0)
             {
                 var r = TryLongReturn(p, atr, snapshot);
-                if (r.IsValid) return r;
+                if (r.IsValid || r.Direction != SignalDirection.None) return r;
             }
 
             return RawDecision.None;
@@ -190,26 +189,32 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             double highestRecent = 0.0;
             for (int i = 1; i < LOOKBACK && i < p.Highs.Length; i++)
                 if (p.Highs[i] > highestRecent) highestRecent = p.Highs[i];
+            
             if (p.High <= highestRecent) return;
 
             // Rejection wick: upper wick ≥ body × ratio
             double body      = Math.Abs(p.Close - p.Open);
             double upperWick = p.High - Math.Max(p.Close, p.Open);
-            if (body > 0 && upperWick < body * WICK_BODY_RATIO) return;
-            if (body <= 0 && upperWick < atr * 0.05) return;   // doji guard
-
+            bool wickFail = (body > 0 && upperWick < body * WICK_BODY_RATIO) || (body <= 0 && upperWick < atr * 0.05);
+            
             // Close in lower half of bar range — timeframe rejected the high
             double barMid = (p.High + p.Low) / 2.0;
-            if (p.Close > barMid) return;
+            bool closeFail = p.Close > barMid;
 
-            // Delta confirmation:
-            //   VolDeltaSh < 0 = sellers were aggressive AT the session high (absorption)
-            //   BarDelta < 0   = net selling on the entire bar despite new high (exhaustion)
-            //   Either is sufficient. Without Volumetric, only BarDelta is available.
+            // Delta confirmation
             bool deltaConfirm = (deltaSh < 0) || (barDelta < 0);
-            if (!deltaConfirm) return;
 
-            // Mark (or replace with stronger extreme)
+            if (wickFail || closeFail || !deltaConfirm)
+            {
+                // Visible rejections for analysis
+                string label = wickFail ? "REJ:FA Wick" : (closeFail ? "REJ:FA Close" : "REJ:FA Delta");
+                _lastBailReason = label;
+                // Note: These are 'internal' rejections, they don't return RawDecision yet because 
+                // they are 'marks' for future returns. We only return RawDecision in Evaluate().
+                return;
+            }
+
+            // Mark
             _failedHigh    = p.High;
             _failedHighBar = p.CurrentBar;
         }
@@ -220,23 +225,27 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             double lowestRecent = double.MaxValue;
             for (int i = 1; i < LOOKBACK && i < p.Lows.Length; i++)
                 if (p.Lows[i] < lowestRecent) lowestRecent = p.Lows[i];
+            
             if (p.Low >= lowestRecent) return;
 
             // Rejection wick: lower wick ≥ body × ratio
             double body      = Math.Abs(p.Close - p.Open);
             double lowerWick = Math.Min(p.Close, p.Open) - p.Low;
-            if (body > 0 && lowerWick < body * WICK_BODY_RATIO) return;
-            if (body <= 0 && lowerWick < atr * 0.05) return;
+            bool wickFail = (body > 0 && lowerWick < body * WICK_BODY_RATIO) || (body <= 0 && lowerWick < atr * 0.05);
 
             // Close in upper half of bar range — timeframe rejected the low
             double barMid = (p.High + p.Low) / 2.0;
-            if (p.Close < barMid) return;
+            bool closeFail = p.Close < barMid;
 
-            // Delta confirmation:
-            //   VolDeltaSl > 0 = buyers were aggressive AT the session low (absorption)
-            //   BarDelta > 0   = net buying on the entire bar despite new low (exhaustion)
+            // Delta confirmation
             bool deltaConfirm = (deltaSl > 0) || (barDelta > 0);
-            if (!deltaConfirm) return;
+
+            if (wickFail || closeFail || !deltaConfirm)
+            {
+                string label = wickFail ? "REJ:FA Wick" : (closeFail ? "REJ:FA Close" : "REJ:FA Delta");
+                _lastBailReason = label;
+                return;
+            }
 
             _failedLow    = p.Low;
             _failedLowBar = p.CurrentBar;
@@ -252,7 +261,10 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                 return RawDecision.None;
 
             // Bearish confirmation — auction failing again on the return
-            if (p.Close > (p.High + p.Low) / 2.0) return RawDecision.None;
+            if (p.Close > (p.High + p.Low) / 2.0) 
+            {
+                return new RawDecision { Direction = SignalDirection.Short, Label = "REJ:FA ReturnWeak", IsValid = false };
+            }
 
             // Score
             int score = 62;
@@ -292,7 +304,10 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                 return RawDecision.None;
 
             // Bullish confirmation — auction failing again on the return
-            if (p.Close < (p.High + p.Low) / 2.0) return RawDecision.None;
+            if (p.Close < (p.High + p.Low) / 2.0) 
+            {
+                return new RawDecision { Direction = SignalDirection.Long, Label = "REJ:FA ReturnWeak", IsValid = false };
+            }
 
             int score = 62;
             double barDelta = snap.Get(SnapKeys.BarDelta);

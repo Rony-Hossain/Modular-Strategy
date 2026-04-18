@@ -309,6 +309,27 @@ namespace NinjaTrader.NinjaScript.Strategies
             return _lastResult;
         }
 
+        public int GetZoneDTOs(ZoneDTO[] buffer)
+        {
+            if (buffer == null) return 0;
+            int count = 0;
+            // Resistance zones (Bearish)
+            for (int i = 0; i < _resistanceCount && count < buffer.Length; i++)
+            {
+                var z = _resistanceZones[i];
+                if (!z.IsValid || z.State == SRZoneState.Broken) continue;
+                buffer[count++] = new ZoneDTO { High = z.ZoneHigh, Low = z.ZoneLow, Label = z.SourceLabel, IsBullish = false, Strength = z.Strength, IsValid = true };
+            }
+            // Support zones (Bullish)
+            for (int i = 0; i < _supportCount && count < buffer.Length; i++)
+            {
+                var z = _supportZones[i];
+                if (!z.IsValid || z.State == SRZoneState.Broken) continue;
+                buffer[count++] = new ZoneDTO { High = z.ZoneHigh, Low = z.ZoneLow, Label = z.SourceLabel, IsBullish = true, Strength = z.Strength, IsValid = true };
+            }
+            return count;
+        }
+
         // ====================================================================
         // MERGE PASS
         // ====================================================================

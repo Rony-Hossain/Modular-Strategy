@@ -133,6 +133,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         private ImbalanceZoneRegistry    _imbalZones;
         private FvgZoneRegistry          _fvgZones;
         private ObZoneRegistry           _obZones;
+        private readonly ZoneDTO[]       _uiZoneBuffer = new ZoneDTO[120];
+        private readonly System.Collections.Generic.List<RawDecision> _filteredCandidates = new System.Collections.Generic.List<RawDecision>(16);
         private SmartMoneyFlowCloudBOSWaves _smf;
 
         private const int VOLUMETRIC_BAR_INDEX = 6;
@@ -189,7 +191,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Calculate        = Calculate.OnBarClose;
                 IsOverlay        = true;
                 IsAutoScale      = false;
-                BarsRequiredToTrade = 12; // 1 hour of 5-min bars. Strategy awake by 10:30 AM.
+                BarsRequiredToTrade = 2; // Allow trading almost immediately after open
                 IsExitOnSessionCloseStrategy = true;
                 IncludeTradeHistoryInBacktest = true;
 
@@ -207,7 +209,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 MaxContracts     = RiskDefaults.MAX_CONTRACTS;
                 MaxDailyLoss     = 0;
                 ShowVWAP         = true;
-                ShowSignals      = false;
+                ShowSignals      = true;
                 ShowOBZones      = true;
             }
             else if (State == State.Configure)
@@ -279,6 +281,27 @@ namespace NinjaTrader.NinjaScript.Strategies
             else if (State == State.Terminated) { _ui?.DisposeResources(); _log?.Dispose(); }
         }
 
+        public override void OnRenderTargetChanged()
+        {
+            if (_ui != null && RenderTarget != null)
+            {
+                _ui.CreateResources(RenderTarget, NinjaTrader.Core.Globals.DirectWriteFactory);
+            }
+        }
+
+        protected override void OnRender(ChartControl chartControl, ChartScale chartScale)
+        {
+            if (_ui == null || _feed == null) return;
+            
+            _ui.OnRender(
+                RenderTarget, 
+                chartControl, 
+                chartScale, 
+                chartControl.BarsArray[0], 
+                _feed.GetSnapshot(), 
+                _feed.GetORB());
+        }
+
         protected override void OnBarUpdate()
         {
             if (BarsInProgress == 0 && Bars.IsFirstBarOfSession)
@@ -304,6 +327,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             if (BarsInProgress != VOLUMETRIC_BAR_INDEX) _feed.OnBarUpdate(BarsInProgress);
+            _filteredCandidates.Clear();
 
             if (BarsInProgress == 2 && CurrentBars[2] >= 1) UpdateHigherTFEma(Close[0], ref _ema50H1Prev, _h1PriceRing, ref _h1PriceRingIdx, ref _h1PriceRingCount, ref _h1EmaBias);
             else if (BarsInProgress == 4 && CurrentBars[4] >= 1) UpdateHigherTFEma(Close[0], ref _ema50H2hrPrev, _h2hrPriceRing, ref _h2hrPriceRingIdx, ref _h2hrPriceRingCount, ref _h2hrEmaBias);
@@ -430,6 +454,22 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _logic.OnSessionOpen(snapshot); _log?.SessionOpen(Time[0], snapshot.VWAP, snapshot.ATR);
             }
 
+            // Phase 3.8 — Time-window gate.
+            // Rule 1: no new entries between 15:45 and 18:00 ET.
+            // Rule 2: no overnight holds — force flatten at 15:45 sharp.
+            if (IsEntryBlocked(Time[0]))
+            {
+                if (_orders.HasOpenPosition || _orders.HasPendingEntry)
+                    _orderManager.ForceFlatten("NoOvernight");
+                return;
+            }
+
+            // FINDING: 11:00-12:00 ET is a negative-edge window for NQ
+            if (IsEntryBlackout(Time[0]))
+            {
+                return;
+            }
+
             if (_orders.HasOpenPosition || _orders.HasPendingEntry)
             {
                 _orderManager.ManagePosition(snapshot, _activeSignal, in _lastFpResult, in _lastSrResult);
@@ -448,13 +488,88 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (orbSet != null)
                     _log?.Warn(Time[0], "ORB_DIAG: {0}", orbSet.LastDiagnostic);
             }
+            // ── INSTRUMENTATION: Log every logic touch before any filtering occurs ──
+            if (_log != null)
+            {
+                for (int i = 0; i < _engine.CandidateCount; i++)
+                {
+                    var c = _engine.CandidateBuffer[i];
+                    if (c.EntryPrice > 0 && c.StopPrice > 0 && (c.TargetPrice > 0 || c.Target2Price > 0))
+                    {
+                        _log.LogTouchEvent(
+                            c.SignalId, 
+                            c.ConditionSetId, 
+                            c.Direction,
+                            c.EntryPrice, 
+                            0, 0,
+                            c.StopPrice, 
+                            c.TargetPrice > 0 ? c.TargetPrice : c.Target2Price,
+                            c.Label, 
+                            snapshot.Primary.Time, 
+                            snapshot);
+                    }
+                }
+            }
+
             int candidateCountForRanking = ApplyFootprintEntryAdvisor(Time[0]);
             _rankingEngine.SetVolumetricMode(snapshot.GetFlag(SnapKeys.HasVolumetric));
             RawDecision decision = _rankingEngine.Rank(_engine.CandidateBuffer, candidateCountForRanking, snapshot, in _lastSrResult);
             
+            // ── Display all rejections (from Ranking Engine and Footprint Advisor) ──
+            if (_ui != null)
+            {
+                // Rejections from ranking engine (VETO or WEAK)
+                foreach (var rej in _rankingEngine.Rejections)
+                {
+                    _ui.AddSignal(new SignalObject
+                    {
+                        Direction    = rej.Direction,
+                        Source       = rej.Source,
+                        EntryPrice   = rej.EntryPrice,
+                        BarIndex     = snapshot.Primary.CurrentBar,
+                        SignalTime   = snapshot.Primary.Time,
+                        CandleHigh   = snapshot.Primary.High,
+                        CandleLow    = snapshot.Primary.Low,
+                        IsRejected   = true,
+                        ConditionSetId = rej.ConditionSetId ?? "",
+                        Detail       = rej.Label 
+                    });
+                }
+
+                // Rejections from footprint entry advisor (VETO:FP)
+                foreach (var filtered in _filteredCandidates)
+                {
+                    _ui.AddSignal(new SignalObject
+                    {
+                        Direction    = filtered.Direction,
+                        Source       = filtered.Source,
+                        EntryPrice   = filtered.EntryPrice,
+                        BarIndex     = snapshot.Primary.CurrentBar,
+                        SignalTime   = snapshot.Primary.Time,
+                        CandleHigh   = snapshot.Primary.High,
+                        CandleLow    = snapshot.Primary.Low,
+                        IsRejected   = true,
+                        ConditionSetId = filtered.ConditionSetId ?? "",
+                        Detail       = filtered.Label 
+                    });
+                }
+            }
+
             if (decision.IsValid)
             {
-                SignalObject signal = _signalGen.Process(decision, snapshot);
+                // Action 3: H4 "Trending" Gate. 
+                // Data proves H4 Neutral (0.0) is a graveyard for this strategy (-$140 edge).
+                if (Math.Abs(_h4hrEmaBias) < 0.5)
+                {
+                    _ui?.AddSignal(new SignalObject { 
+                        Direction = decision.Direction, Label = "REJ:H4 Neutral", IsRejected = true, 
+                        BarIndex = snapshot.Primary.CurrentBar, EntryPrice = decision.EntryPrice,
+                        SignalTime = snapshot.Primary.Time, ConditionSetId = decision.ConditionSetId 
+                    });
+                    return; 
+                }
+
+                SignalObject signal = _signalGen.Process(decision, snapshot, _rankingEngine.LastWinnerDetail);
                 if (signal != null)
                 {
                     _orders.SubmitEntry(signal);
@@ -463,7 +578,36 @@ namespace NinjaTrader.NinjaScript.Strategies
                     _lastSignalBar = CurrentBar;
                     _ui.AddSignal(signal);
                 }
+                else if (_signalGen.LastRejectedSignal != null)
+                {
+                    _ui.AddSignal(_signalGen.LastRejectedSignal);
+                }
             }
+
+            if (_ui != null && _srEngine != null)
+            {
+                int zoneCount = _srEngine.GetZoneDTOs(_uiZoneBuffer);
+                _ui.SetZones(_uiZoneBuffer, zoneCount);
+            }
+        }
+
+        // Phase 3.8 — Time-window gate.
+        // Block new entries and force flatten existing positions between 15:45 and 18:00 ET.
+        // Bars.GetTime(...) is instrument/exchange local time, matching the ET-based session labels.
+        private static readonly TimeSpan _entryBlockStart = new TimeSpan(15, 45, 0);
+        private static readonly TimeSpan _entryBlockEnd   = new TimeSpan(18,  0, 0);
+        private static bool IsEntryBlocked(DateTime t)
+        {
+            TimeSpan tod = t.TimeOfDay;
+            return tod >= _entryBlockStart && tod < _entryBlockEnd;
+        }
+
+        private static readonly TimeSpan _blackoutStart = new TimeSpan(11, 0, 0);
+        private static readonly TimeSpan _blackoutEnd   = new TimeSpan(12, 0, 0);
+        private static bool IsEntryBlackout(DateTime t)
+        {
+            TimeSpan tod = t.TimeOfDay;
+            return tod >= _blackoutStart && tod < _blackoutEnd;
         }
 
         protected override void OnMarketData(MarketDataEventArgs e)
@@ -542,7 +686,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 
                 FootprintEntryDecision ea = _entryAdvisor.Evaluate(c.Direction, c.ConditionSetId ?? string.Empty);
-                if (ea.IsVetoed) continue;
+                if (ea.IsVetoed)
+                {
+                    var filtered = c;
+                    filtered.Label = "VETO:FP";
+                    _filteredCandidates.Add(filtered);
+                    continue;
+                }
                 c.RawScore = (int)Math.Round(c.RawScore * ea.Multiplier, MidpointRounding.AwayFromZero);
                 _engine.CandidateBuffer[fpWrite++] = c;
             }
@@ -649,8 +799,57 @@ namespace NinjaTrader.NinjaScript.Strategies
                 snapshot.Set(SnapKeys.UnfinishedBottom, 0.0);
             }
 
+            // Phase 3.7 — Tape signals (BigPrint / Velocity / Sweep / TapeIceberg)
+            if (_bigPrint != null)
+            {
+                snapshot.Set(SnapKeys.BigPrintDelta,   _bigPrint.BigPrintDelta);
+                snapshot.Set(SnapKeys.BigPrintBuyVol,  _bigPrint.BigPrintBuyVolume);
+                snapshot.Set(SnapKeys.BigPrintSellVol, _bigPrint.BigPrintSellVolume);
+            }
+            else
+            {
+                snapshot.Set(SnapKeys.BigPrintDelta,   0.0);
+                snapshot.Set(SnapKeys.BigPrintBuyVol,  0.0);
+                snapshot.Set(SnapKeys.BigPrintSellVol, 0.0);
+            }
+
+            if (_velocity != null)
+            {
+                snapshot.Set(SnapKeys.VelocityBuySpike,  _velocity.BuySpike  ? 1.0 : 0.0);
+                snapshot.Set(SnapKeys.VelocitySellSpike, _velocity.SellSpike ? 1.0 : 0.0);
+            }
+            else
+            {
+                snapshot.Set(SnapKeys.VelocityBuySpike,  0.0);
+                snapshot.Set(SnapKeys.VelocitySellSpike, 0.0);
+            }
+
+            if (_sweep != null)
+            {
+                snapshot.Set(SnapKeys.BuySweep,  _sweep.BuySweepActive  ? 1.0 : 0.0);
+                snapshot.Set(SnapKeys.SellSweep, _sweep.SellSweepActive ? 1.0 : 0.0);
+            }
+            else
+            {
+                snapshot.Set(SnapKeys.BuySweep,  0.0);
+                snapshot.Set(SnapKeys.SellSweep, 0.0);
+            }
+
+            if (_tapeIceberg != null)
+            {
+                snapshot.Set(SnapKeys.TapeBullIceberg, _tapeIceberg.BullIcebergActive ? 1.0 : 0.0);
+                snapshot.Set(SnapKeys.TapeBearIceberg, _tapeIceberg.BearIcebergActive ? 1.0 : 0.0);
+            }
+            else
+            {
+                snapshot.Set(SnapKeys.TapeBullIceberg, 0.0);
+                snapshot.Set(SnapKeys.TapeBearIceberg, 0.0);
+            }
+
             snapshot.Set(SnapKeys.BullDivergence, _divTracker.IsBullDivergenceActive(CurrentBar) ? 1.0 : 0.0);
             snapshot.Set(SnapKeys.BearDivergence, _divTracker.IsBearDivergenceActive(CurrentBar) ? 1.0 : 0.0);
+            int dex = MathOrderFlow.DeltaExhaustion_Detect(snapshot.Primary.BarDeltas, snapshot.Primary.Closes);
+            snapshot.Set(SnapKeys.DeltaExhaustion, (double)dex);
             snapshot.Set(SnapKeys.H1EmaBias, _h1EmaBias);
             snapshot.Set(SnapKeys.H2HrEmaBias, _h2hrEmaBias);
             snapshot.Set(SnapKeys.H4HrEmaBias, _h4hrEmaBias);
@@ -683,21 +882,28 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         protected virtual IStrategyLogic CreateLogic(InstrumentKind inst) {
             var smfEngine = new ConditionSets.SMFNativeEngine();
+            var smfFull   = new ConditionSets.SMFFullEngine();
+            
             return new StrategyEngine(_log, 
-                // new ConditionSets.SMF_Native_Impulse(smfEngine), 
-                // new ConditionSets.SMF_Native_BandReclaim(smfEngine), 
-                // new ConditionSets.SMF_Native_Retest(smfEngine), 
-                // new ConditionSets.SMC_BOS(), 
-                // new ConditionSets.SMC_OB(), 
-                // new ConditionSets.SMC_FVG_Retest(), 
-                // new ConditionSets.SMC_IFVG(), 
-                // new ConditionSets.SMC_Liquidity_Sweep(), 
-                // new ConditionSets.SMC_Session_Sweep(), 
-                // new ConditionSets.Wyckoff_Spring(), 
-                // new ConditionSets.Wyckoff_Upthrust(), 
-                // new ConditionSets.FailedAuction(), 
-                // new ConditionSets.EMA_Cross(), 
-                // new ConditionSets.ADX_Trend(), 
+                new ConditionSets.SMF_Native_BandReclaim(smfEngine), 
+                new ConditionSets.SMF_Full_Impulse(smfFull),
+                new ConditionSets.SMF_Full_Switch(smfFull),
+                new ConditionSets.SMC_BOS(), 
+                new ConditionSets.SMC_OB(), 
+                new ConditionSets.SMC_IFVG(), 
+                new ConditionSets.SMC_Liquidity_Sweep(), 
+                new ConditionSets.SMC_Session_Sweep(), 
+                new ConditionSets.Wyckoff_Spring(), 
+                new ConditionSets.Wyckoff_Upthrust(), 
+                new ConditionSets.FailedAuction(), 
+                new ConditionSets.EMA_Cross(), 
+                new ConditionSets.DeltaDivergenceSignal(),
+                new ConditionSets.ImbalanceReAggressionSignal(),
+                // IcebergAbsorption_v1 DISABLED (Phase 3.11): 0/2 win rate over
+                // 6-week backtest, -$2,307 total drag. 7,551 evals produced only
+                // 2 trades, both large losses. Signal not ready for live use.
+                // new ConditionSets.IcebergAbsorptionSignal(),
+                new ConditionSets.HybridScalpSignal(),
                 new ConditionSets.ORB_Classic(_log),
                 new ConditionSets.ORB_Measure(_log)
 				); 

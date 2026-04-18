@@ -39,6 +39,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public bool ShowVWAP          { get; set; } = true;
         public bool ShowSDbands        { get; set; } = true;
         public bool ShowSignalBubbles  { get; set; } = true;
+        public bool ShowRejectedSignals { get; set; } = true;
         public bool ShowOBZones        { get; set; } = true;
         public bool ShowSRLevels       { get; set; } = true;
         public bool ShowORBLines       { get; set; } = true;
@@ -76,6 +77,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private SharpDX.Direct2D1.Brush _bullBrush;
         private SharpDX.Direct2D1.Brush _bearBrush;
+        private SharpDX.Direct2D1.Brush _rejectBrush;
         private SharpDX.Direct2D1.Brush _vwapBrush;
         private SharpDX.Direct2D1.Brush _sd1Brush;
         private SharpDX.Direct2D1.Brush _sd2Brush;
@@ -90,11 +92,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool                     _resourcesCreated;
 
         // ===================================================================
-        // SIGNAL QUEUE (last N signals to display)
+        // INTERNAL STATE
         // ===================================================================
 
-        private const int MAX_SIGNALS = 20;
+        private const int MAX_SIGNALS = 1000;
         private readonly Queue<SignalObject> _signalQueue = new Queue<SignalObject>(MAX_SIGNALS);
+
 
         // ===================================================================
         // RESOURCE LIFECYCLE
@@ -133,6 +136,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             _bullBrush   = new SolidColorBrush(renderTarget, new Color4(0.13f, 0.70f, 0.30f, 0.95f));
             _bearBrush   = new SolidColorBrush(renderTarget, new Color4(0.85f, 0.18f, 0.18f, 0.95f));
+            _rejectBrush = new SolidColorBrush(renderTarget, new Color4(0.50f, 0.50f, 0.50f, 0.80f)); // Gray for rejections
             _vwapBrush   = new SolidColorBrush(renderTarget, new Color4(0.95f, 0.75f, 0.10f, 0.90f));
             _sd1Brush    = new SolidColorBrush(renderTarget, new Color4(0.95f, 0.75f, 0.10f, 0.40f));
             _sd2Brush    = new SolidColorBrush(renderTarget, new Color4(0.95f, 0.75f, 0.10f, 0.20f));
@@ -164,13 +168,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             _resourcesCreated = false;
 
-            _bullBrush?.Dispose();   _bearBrush?.Dispose();
-            _vwapBrush?.Dispose();   _sd1Brush?.Dispose();   _sd2Brush?.Dispose();
+            _bullBrush?.Dispose();   _bearBrush?.Dispose();   _rejectBrush?.Dispose();
+            _vwapBrush?.Dispose();   _sd1Brush?.Dispose();    _sd2Brush?.Dispose();
             _obBullBrush?.Dispose(); _obBearBrush?.Dispose();
-            _srbBrush?.Dispose();    _orbBrush?.Dispose();   _textBrush?.Dispose();
+            _srbBrush?.Dispose();    _orbBrush?.Dispose();    _textBrush?.Dispose();
             _labelFormat?.Dispose(); _bubbleTextFormat?.Dispose();
 
-            _bullBrush = _bearBrush = _vwapBrush = _sd1Brush = _sd2Brush = null;
+            _bullBrush = _bearBrush = _rejectBrush = _vwapBrush = _sd1Brush = _sd2Brush = null;
             _obBullBrush = _obBearBrush = _srbBrush = _orbBrush = _textBrush = null;
             _labelFormat = null; _bubbleTextFormat = null;
         }
@@ -196,6 +200,31 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// Uses ZoneDTO and LevelDTO — decoupled from MathLogic.OrderBlock and MathLogic.SRLevel.
         /// Strategy logic converts its MathLogic types to these DTOs before calling.
         /// </summary>
+        // IUIRenderer explicit implementation — HostStrategy calls this via interface
+        void IUIRenderer.OnRender(
+            object renderTarget,
+            object chartControl,
+            object chartScale,
+            object chartBars,
+            MarketSnapshot snapshot,
+            ORBContext orb)
+        {
+            var rt = renderTarget as RenderTarget;
+            var cc = chartControl as ChartControl;
+            var cs = chartScale as ChartScale;
+            var cb = chartBars as NinjaTrader.Gui.Chart.ChartBars;
+
+            if (rt == null || cc == null || cs == null || cb == null) return;
+
+            // If we don't have a factory yet, use the global one from NinjaTrader
+            if (_writeFactory == null)
+            {
+                _writeFactory = NinjaTrader.Core.Globals.DirectWriteFactory;
+            }
+
+            OnRender(cc, cs, rt, cb, snapshot, orb);
+        }
+
         public void OnRender(
             ChartControl    chartControl,
             ChartScale      chartScale,
@@ -204,7 +233,21 @@ namespace NinjaTrader.NinjaScript.Strategies
             MarketSnapshot  snapshot,
             ORBContext      orb)
         {
-            if (!_resourcesCreated || renderTarget == null) return;
+            if (renderTarget == null) return;
+
+            // Lazy resource creation / recreation if target changes
+            if (!_resourcesCreated)
+            {
+                CreateResources(renderTarget, _writeFactory);
+            }
+            // If the RenderTarget has changed (e.g. chart resized or moved), recreate resources
+            // Note: SharpDX brushes are bound to a specific RenderTarget.
+            else if (_bullBrush != null && _bullBrush.NativePointer != IntPtr.Zero && _bullBrush.Factory != renderTarget.Factory)
+            {
+                 CreateResources(renderTarget, _writeFactory);
+            }
+
+            if (!_resourcesCreated) return;
             if (chartControl == null || chartScale == null) return;
 
             // ── VWAP + SD Bands ──
@@ -333,43 +376,57 @@ namespace NinjaTrader.NinjaScript.Strategies
             SignalObject  sig)
         {
             if (sig == null) return;
+            if (sig.IsRejected && !ShowRejectedSignals) return;
 
             float x = (float)cc.GetXByBarIndex(chartBars, sig.BarIndex);
             if (x < cc.CanvasLeft || x > cc.CanvasRight) return;
 
             bool isLong = sig.Direction == SignalDirection.Long;
-            var  brush  = isLong ? _bullBrush : _bearBrush;
+            var  brush  = sig.IsRejected ? _rejectBrush : (isLong ? _bullBrush : _bearBrush);
 
-            string label = !string.IsNullOrEmpty(sig.Grade)
-                ? (isLong ? "BUY" : "SELL") + " " + sig.Grade
-                : (isLong ? "BUY" : "SELL");
+            string labelPrefix = sig.IsRejected ? "REJ " : "";
+            string sourceLabel = !string.IsNullOrEmpty(sig.ConditionSetId) ? sig.ConditionSetId.Split('_')[0] : sig.Source.ToString();
+            
+            string label = string.Format("{0}{1} {2}{3}", 
+                labelPrefix, 
+                isLong ? "BUY" : "SELL", 
+                sourceLabel,
+                !string.IsNullOrEmpty(sig.Grade) ? " " + sig.Grade : "");
 
-            // Body is slightly wider when a grade suffix is appended (e.g. "BUY A+")
-            float bodyW    = string.IsNullOrEmpty(sig.Grade) ? 60f : 80f;
-            const float BODY_H    = 25f;
-            const float CORNER_R  = 6f;
-            const float POINTER_W = 12f;
-            const float POINTER_H = 8f;
-
-            // Anchor tip to bar edge so the bubble touches the candle, not entry price
-            float tipY = isLong
-                ? (float)cs.GetYByValue(sig.CandleLow)  + 5f   // below bar low
-                : (float)cs.GetYByValue(sig.CandleHigh) - 5f;  // above bar high
-
-            if (isLong)
-                RenderBubbleUp(rt, x, tipY, bodyW, BODY_H, CORNER_R, POINTER_W, POINTER_H, brush);
-            else
-                RenderBubbleDown(rt, x, tipY, bodyW, BODY_H, CORNER_R, POINTER_W, POINTER_H, brush);
-
-            // Text rect — centred inside the body (same arithmetic as the indicator)
-            if (ShowLabels && _bubbleTextFormat != null && _textBrush != null)
+            // Measure text to determine dynamic sizing
+            if (_writeFactory == null) return;
+            using (var layout = new TextLayout(_writeFactory, label, _bubbleTextFormat, 300f, 100f))
             {
-                float textY = isLong
-                    ? tipY + POINTER_H          // body top for BubbleUp
-                    : tipY - POINTER_H - BODY_H; // body top for BubbleDown
+                float textW = layout.Metrics.Width;
+                float textH = layout.Metrics.Height;
 
-                var textRect = new RectangleF(x - bodyW * 0.5f, textY, bodyW, BODY_H);
-                rt.DrawText(label, _bubbleTextFormat, textRect, _textBrush);
+                float bodyW = Math.Max(60f, textW + 20f);  // Padding
+                float bodyH = Math.Max(25f, textH + 10f);  // Padding
+                
+                const float CORNER_R  = 6f;
+                const float POINTER_W = 12f;
+                const float POINTER_H = 8f;
+
+                // Anchor tip to bar edge so the bubble touches the candle
+                float tipY = isLong
+                    ? (float)cs.GetYByValue(sig.CandleLow)  + 5f
+                    : (float)cs.GetYByValue(sig.CandleHigh) - 5f;
+
+                if (isLong)
+                    RenderBubbleUp(rt, x, tipY, bodyW, bodyH, CORNER_R, POINTER_W, POINTER_H, brush);
+                else
+                    RenderBubbleDown(rt, x, tipY, bodyW, bodyH, CORNER_R, POINTER_W, POINTER_H, brush);
+
+                // Text rect — centered inside the body
+                if (ShowLabels && _bubbleTextFormat != null && _textBrush != null)
+                {
+                    float textY = isLong
+                        ? tipY + POINTER_H + (bodyH - textH) * 0.5f
+                        : tipY - POINTER_H - bodyH + (bodyH - textH) * 0.5f;
+
+                    var textRect = new RectangleF(x - bodyW * 0.5f, textY, bodyW, textH);
+                    rt.DrawText(label, _bubbleTextFormat, textRect, _textBrush);
+                }
             }
         }
 

@@ -89,6 +89,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             _consecutiveLosses = 0;
             _totalTradesDay    = 0;
             _circuitBreakerHit = false;
+            LastRejectedSignal = null;
         }
 
         public void OnFill(SignalObject signal, double fillPrice)
@@ -124,10 +125,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// <summary>
         /// Main entry point. Returns null if rejected.
         /// </summary>
-        public SignalObject Process(RawDecision decision, MarketSnapshot snapshot)
+        public SignalObject Process(RawDecision decision, MarketSnapshot snapshot, string confluenceDetail)
         {
             _lastDecision = decision;
+            _lastSnapshot = snapshot;
             _lastBarTime  = snapshot.Primary.Time;
+            LastRejectedSignal = null;
 
             // ── Gate 1: circuit breaker ──
             if (_circuitBreakerHit)                              return Reject("G1:CircuitBreaker");
@@ -285,6 +288,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // }
 
             // ── All gates passed — build signal ──
+            string signalId = string.Format("{0}:{1:yyyyMMdd}:{2}", 
+                decision.ConditionSetId ?? "SIG", _lastBarTime, snapshot.Primary.CurrentBar);
+
             var accepted = new SignalObject
             {
                 Direction    = decision.Direction,
@@ -299,7 +305,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Grade        = grade,
                 Label          = decision.Label,
                 ConditionSetId = decision.ConditionSetId ?? "",
-                SignalId       = decision.SignalId       ?? "",
+                SignalId       = signalId,
                 BarIndex       = snapshot.Primary.CurrentBar,
                 SignalTime     = snapshot.Primary.Time,
                 CandleHigh     = snapshot.Primary.High,
@@ -307,8 +313,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Contracts      = contracts,
                 Method         = OrderMethod.LimitWithFallback,
                 IsActive       = true,
-                IsFilled       = false
+                IsFilled       = false,
+                Detail         = confluenceDetail ?? ""
             };
+
 
             // Log slippage context alongside signal acceptance.
             // Warn() is the correct public method — Print() is private on StrategyLogger.
@@ -328,12 +336,42 @@ namespace NinjaTrader.NinjaScript.Strategies
         private static string GradeLabel(int gradeIndex) => GradeLabels.Get(gradeIndex);
 
         public string LastRejectReason { get; private set; } = "";
+        public SignalObject LastRejectedSignal { get; private set; }
+
         private RawDecision _lastDecision;
+        private MarketSnapshot _lastSnapshot;
         private DateTime    _lastBarTime;
 
         private SignalObject Reject(string reason)
         {
             LastRejectReason = reason;
+            
+            // Capture the rejected signal for UI rendering
+            if (_lastDecision.IsValid && _lastSnapshot.IsValid)
+            {
+                string signalId = string.Format("{0}:{1:yyyyMMdd}:{2}", 
+                    _lastDecision.ConditionSetId ?? "REJ", _lastBarTime, _lastSnapshot.Primary.CurrentBar);
+
+                LastRejectedSignal = new SignalObject
+                {
+                    SignalId     = signalId,
+                    Direction    = _lastDecision.Direction,
+                    Source       = _lastDecision.Source,
+                    EntryPrice   = _lastDecision.EntryPrice,
+                    StopPrice    = _lastDecision.StopPrice,
+                    Score        = _lastDecision.RawScore,
+                    Label        = _lastDecision.Label,
+                    ConditionSetId = _lastDecision.ConditionSetId ?? "",
+                    BarIndex     = _lastSnapshot.Primary.CurrentBar,
+                    SignalTime   = _lastSnapshot.Primary.Time,
+                    CandleHigh   = _lastSnapshot.Primary.High,
+                    CandleLow    = _lastSnapshot.Primary.Low,
+                    IsActive     = false,
+                    IsRejected   = true,
+                    Detail       = reason
+                };
+            }
+
             _log?.SignalRejected(
                 _lastBarTime,
                 _lastDecision.Source, _lastDecision.Direction,

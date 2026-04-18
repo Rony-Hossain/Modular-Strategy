@@ -191,29 +191,30 @@ namespace NinjaTrader.NinjaScript.Strategies
                     continue;
                 }
 
-                if (!d.IsValid)
-                {
-                    _log?.EvalNoSignal(p.CurrentBar, p.Time, $"[{set.SetId}] no match");
-                    continue;
-                }
-
-                // FIX (#N9): Direction-aware re-entry suppression
-                if (d.Direction == SignalDirection.Long && _lastFillBarLong >= 0 && p.CurrentBar - _lastFillBarLong < REENTRY_SUPPRESSION_BARS)
-                    continue;
-                if (d.Direction == SignalDirection.Short && _lastFillBarShort >= 0 && p.CurrentBar - _lastFillBarShort < REENTRY_SUPPRESSION_BARS)
-                    continue;
-
                 // Stamp origin IDs onto the decision
                 d.ConditionSetId = set.SetId;
                 d.BarIndex = p.CurrentBar;
                 d.SignalId = BuildSignalId(set.SetId, p.Time, p.CurrentBar);
 
-                // Log every valid candidate — not just the winner
-                _log?.EvalDecision(p.Time, d, snapshot);
+                // Log every decision — even rejections, if they have a direction and prices
+                if (d.Direction != SignalDirection.None)
+                {
+                    _log?.EvalDecision(p.Time, d, snapshot);
+                }
 
-                // Buffer the candidate (guard against overflow — should never fire)
-                if (_lastCandidateCount < MAX_SETS)
-                    _candidates[_lastCandidateCount++] = d;
+                // Buffer ALL candidates that have a tradeable direction and prices
+                // regardless of IsValid, so HostStrategy can instrument them.
+                if (d.Direction != SignalDirection.None && d.EntryPrice > 0 && d.StopPrice > 0)
+                {
+                    if (_lastCandidateCount < MAX_SETS)
+                        _candidates[_lastCandidateCount++] = d;
+                }
+
+                if (!d.IsValid)
+                {
+                    _log?.EvalNoSignal(p.CurrentBar, p.Time, $"[{set.SetId}] no match");
+                    continue;
+                }
             }
 
             // ── Select winner: highest RawScore ────────────────────────

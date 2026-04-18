@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hybrid Scalping Strategy — Signal Chain Roles</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9f9f7;color:#1a1a18;padding:24px;min-height:100vh}
+.wrap{max-width:920px;margin:0 auto}
+h1{font-size:20px;font-weight:500;margin-bottom:4px;color:#1a1a18}
+.subtitle{font-size:13px;color:#73726c;margin-bottom:20px}
+.step-nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.step-btn{font-size:11px;font-weight:500;padding:5px 12px;border-radius:8px;cursor:pointer;border:0.5px solid #d3d1c7;background:#f1efe8;color:#73726c;transition:all .15s;white-space:nowrap}
+.step-btn.active{border-color:transparent;color:#fff}
+.step-btn:hover{border-color:#888780}
+.step-panel{display:none;background:#fff;border-radius:12px;border:0.5px solid #d3d1c7;padding:20px}
+.step-panel.active{display:block}
+.role-header{display:flex;align-items:flex-start;gap:14px;margin-bottom:16px}
+.role-num{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500;flex-shrink:0}
+.role-title-block{flex:1}
+.role-title{font-size:16px;font-weight:500;color:#1a1a18;margin-bottom:3px}
+.role-question{font-size:13px;color:#73726c;font-style:italic}
+.role-body{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:600px){.role-body{grid-template-columns:1fr}}
+.role-col-title{font-size:11px;font-weight:500;color:#888780;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px}
+.component{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px}
+.comp-dot{width:7px;height:7px;border-radius:50%;margin-top:5px;flex-shrink:0}
+.comp-info{flex:1}
+.comp-name{font-size:12px;font-weight:500;color:#1a1a18}
+.comp-role{font-size:11px;color:#5f5e5a;line-height:1.5;margin-top:1px}
+.comp-file{font-family:'SF Mono',Monaco,Consolas,monospace;font-size:10px;color:#888780;margin-top:2px}
+.rule-box{border-radius:8px;padding:10px 12px;margin-bottom:12px}
+.rule-label{font-size:11px;font-weight:500;margin-bottom:5px}
+.rule-text{font-size:12px;line-height:1.6;color:#1a1a18}
+.output-box{border-radius:8px;padding:10px 12px;background:#f1efe8;border:0.5px solid #d3d1c7}
+.output-label{font-size:11px;font-weight:500;color:#888780;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em}
+.output-text{font-size:12px;font-weight:500;color:#1a1a18}
+.chain-preview{display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:10px 0;border-top:0.5px solid #d3d1c7;margin-top:4px}
+.chain-pill{font-size:10px;font-weight:500;padding:3px 8px;border-radius:6px;white-space:nowrap}
+.chain-dim{opacity:0.3;background:#f1efe8;color:#888780}
+.chain-arr{font-size:11px;color:#888780}
+.nav-row{display:flex;justify-content:space-between;margin-top:16px;padding-top:12px;border-top:0.5px solid #d3d1c7}
+.nav-btn{font-size:12px;padding:6px 14px;border-radius:8px;cursor:pointer;border:0.5px solid #d3d1c7;background:transparent;color:#73726c}
+.nav-btn:hover{background:#f1efe8;color:#1a1a18}
+.nav-btn:disabled{opacity:0.3;cursor:default}
+.summary-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.sum-chip{font-size:11px;padding:4px 10px;border-radius:8px;font-weight:500}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Hybrid Scalping Strategy — Signal Chain Roles</h1>
+<p class="subtitle">How every component works together to produce one high-quality scalping signal</p>
+<div class="step-nav" id="nav"></div>
+<div id="panels"></div>
+</div>
+<script>
+const STEPS=[
+{
+  color:"#534AB7",bg:"#EEEDFE",dotColor:"#7F77DD",
+  num:"1",label:"Direction filter",
+  title:"Direction filter",
+  question:"Which way are we allowed to trade right now?",
+  components:[
+    {name:"H4 50-EMA bias",role:"The macro anchor. If H4 is bearish, longs need a floor score of 60+ to pass — effectively vetoing low-conviction long setups against the dominant trend.",file:"HostStrategy.cs → OnPopulateIndicatorBag()",dot:"#7F77DD"},
+    {name:"H2 50-EMA bias",role:"Intermediate filter. Adds penalty points in ConfluenceEngine Layer A when opposing. Two opposing TFs together add -19 penalty — enough to kill most marginal signals.",file:"HostStrategy.cs → OnPopulateIndicatorBag()",dot:"#7F77DD"},
+    {name:"H1 bar direction",role:"Execution timeframe bias. Scored in Layer A (+6). Not a hard gate — it is a soft alignment bonus. A strong signal can fire against H1 if H4 and H2 agree.",file:"DataFeed.cs → Higher1 snapshot",dot:"#7F77DD"},
+    {name:"VWAP side",role:"Intraday value reference. Price above VWAP = buyers control intraday value. Scored in Layer C (+5). Also feeds ConfluenceEngine Layer B veto when a long signal fires below VWAP in a bearish session.",file:"DataFeed.cs → VWAP calculation",dot:"#7F77DD"},
+    {name:"Session phase",role:"Time-aware gate. No entries during PreMarket or AfterHours. ORB signals only fire after ORBComplete. VWAP_RTH only fires during Early/Mid/Late session.",file:"DataFeed.cs → GetSessionPhase()",dot:"#7F77DD"},
+  ],
+  rule:{color:"#EEEDFE",border:"#AFA9EC",label:"The rule at this layer",text:"If H4 is bearish and H2 is bearish, the effective floor for any long signal rises to 60+. That means the signal needs near-perfect order flow AND structure alignment to fire. The direction filter doesn't block trades — it raises the bar so only high-conviction setups survive against the macro trend."},
+  output:"Produces: a bias direction (+1 bull, -1 bear, 0 neutral) and a Layer A score that feeds the confluence engine.",
+  chain:[{t:"Direction filter",a:true},{t:"→"},{t:"S/R context",a:false},{t:"→"},{t:"Structure event",a:false},{t:"→"},{t:"Zone entry",a:false},{t:"→"},{t:"Order flow",a:false},{t:"→"},{t:"Tape",a:false},{t:"→"},{t:"Score + gate",a:false},{t:"→"},{t:"Execution",a:false}]
+},
+{
+  color:"#0F6E56",bg:"#E1F5EE",dotColor:"#1D9E75",
+  num:"2",label:"S/R context",
+  title:"Support & resistance context",
+  question:"Where are the key price levels that matter right now?",
+  components:[
+    {name:"SupportResistanceEngine",role:"The map. Merges 11 level sources into weighted SRZones. A zone where a H4 swing, PDH, and POC all cluster together gets a Strength score of 40+ — that's a high-conviction level. ConfluenceEngine Layer B reads this zone map to score every signal.",file:"SupportResistanceEngine.cs",dot:"#1D9E75"},
+    {name:"H4/H2/H1 swing levels",role:"Institutional structure levels. H4 swings get the highest weight (20). When price is AT a H4 swing, Layer B scores +40 (maximum). When a signal fires INTO a H4 swing level from the wrong side, it is vetoed.",file:"SwingLevelSource in SupportResistanceEngine.cs",dot:"#1D9E75"},
+    {name:"POC / VAH / VAL",role:"Volume acceptance levels. POC is bidirectional — it acts as both support and resistance. Signals that enter near POC in the direction of accepted value score a bonus. Signals that buy above POC are penalised -15 in ConfluenceEngine.",file:"VolumeProfileLevelSource in SupportResistanceEngine.cs",dot:"#1D9E75"},
+    {name:"PDH / PDL / London / NY H/L",role:"Session auction boundaries. Rejections at PDH produce Failed Auction and Wyckoff Upthrust signals. Confluence at PDL + H1 swing strengthens zone Strength. These levels feed directly into Layer B scoring.",file:"SessionLevelSource in SupportResistanceEngine.cs",dot:"#1D9E75"},
+    {name:"ORB high / low",role:"Opening range defines early-session reference frame. ORB_Classic only fires after ORBComplete. SR engine treats ORB levels as soft S/R — not as hard gates — so other signals can still use ORB proximity as a confluence bonus.",file:"DataFeed.cs + SupportResistanceCoreConfig.cs",dot:"#1D9E75"},
+  ],
+  rule:{color:"#E1F5EE",border:"#5DCAA5",label:"The rule at this layer",text:"Every signal passes through Layer B in ConfluenceEngine. If price is AT an adverse zone (shorting into support, longing into resistance), the signal is vetoed entirely regardless of score. If price is AT a favorable zone, it gets up to +40 bonus. This layer answers: is there a structural reason to be here?"},
+  output:"Produces: NearestSupport, NearestResistance, StrongestSupport zones. Feeds ConfluenceEngine Layer B. Vetoes signals at adverse zones.",
+  chain:[{t:"Direction filter",a:false},{t:"→"},{t:"S/R context",a:true},{t:"→"},{t:"Structure event",a:false},{t:"→"},{t:"Zone entry",a:false},{t:"→"},{t:"Order flow",a:false},{t:"→"},{t:"Tape",a:false},{t:"→"},{t:"Score + gate",a:false},{t:"→"},{t:"Execution",a:false}]
+},
+{
+  color:"#185FA5",bg:"#E6F1FB",dotColor:"#378ADD",
+  num:"3",label:"Structure event",
+  title:"Structure event",
+  question:"Did something just happen that changes the directional picture?",
+  components:[
+    {name:"CHoCH (Change of Character)",role:"The earliest reversal signal. When price in a downtrend breaks the last swing high, that's the first sign the trend is flipping. Fires as a one-shot event via SnapKeys.CHoCHFiredLong/Short. In the hybrid chain, CHoCH is the CATALYST that arms the zone-entry window.",file:"StructuralLabeler.cs → CHoCH detection",dot:"#378ADD"},
+    {name:"BOS (Break of Structure)",role:"Continuation confirmation. A higher high in an uptrend = trend is intact. More conservative than CHoCH. BOS fires AFTER CHoCH — it confirms the new trend is establishing. Used as a second entry opportunity if you missed the CHoCH.",file:"StructuralLabeler.cs → BOS detection",dot:"#378ADD"},
+    {name:"SMF Impulse / Band Reclaim",role:"Flow-based structural events. SMF Impulse fires when the flow regime flips AND strength is above threshold. Band Reclaim fires when price re-enters the cloud after an extension — mean-reversion catalyst.",file:"SMF_Native.cs + SmartMoneyFlowCloudBOSWaves",dot:"#378ADD"},
+    {name:"Wyckoff Spring / Upthrust",role:"False-break structural events. Spring = price wicks below a key level, fails to hold, snaps back = trapped shorts. Upthrust = mirror. High conviction because they involve trapped participants whose stop-loss exits extend the move.",file:"Wyckoff_Signals.cs",dot:"#378ADD"},
+    {name:"Failed Auction",role:"Market profile event. Price reaches an extreme, fails to attract two-way participation, and immediately rejects. The market is obligated to revisit and complete the auction. Fires when price returns to the extreme level and rejects again.",file:"FailedAuction.cs",dot:"#378ADD"},
+    {name:"ORB breakout",role:"Opening range event. The first close beyond ORB high/low locks the session direction bias. All ORB_Classic entries are continuation trades in the direction of the first breakout, retesting the volume profile value area.",file:"ORB_Classic.cs",dot:"#378ADD"},
+  ],
+  rule:{color:"#E6F1FB",border:"#85B7EB",label:"The rule at this layer",text:"A structure event is the TRIGGER. Nothing fires without one. The event defines direction and starts a countdown — you have a window (typically 10 bars) to find a precise entry. If price never pulls back into a zone within that window, the signal is abandoned. Structure without zone entry = no trade."},
+  output:"Produces: directional bias + entry window timer + RawDecision with initial stop and target. Feeds StrategyEngine candidate buffer.",
+  chain:[{t:"Direction filter",a:false},{t:"→"},{t:"S/R context",a:false},{t:"→"},{t:"Structure event",a:true},{t:"→"},{t:"Zone entry",a:false},{t:"→"},{t:"Order flow",a:false},{t:"→"},{t:"Tape",a:false},{t:"→"},{t:"Score + gate",a:false},{t:"→"},{t:"Execution",a:false}]
+},
+{
+  color:"#854F0B",bg:"#FAEEDA",dotColor:"#EF9F27",
+  num:"4",label:"Zone entry",
+  title:"Zone entry precision",
+  question:"Where exactly within this move do we enter?",
+  components:[
+    {name:"FVG (Fair Value Gap) retest",role:"A 3-bar imbalance gap where the market moved too fast to establish two-way trading. Price is drawn back to fill the gap. Entry fires when price retraces INTO the gap with a confirming close. The gap is the entry zone — stop goes below the gap low (bull), target is the gap origin.",file:"SMC_OrderFlow.cs → SMC_FVG_Retest",dot:"#EF9F27"},
+    {name:"IFVG (Inverse FVG) retest",role:"An FVG that was disrespected — price sliced through it instead of respecting it. That FVG now flips polarity. Entry on the first retest of the flipped zone. Higher conviction than a standard FVG because polarity flip confirms institutional intent.",file:"SMC_IFVG.cs",dot:"#EF9F27"},
+    {name:"Order Block (OB) retest",role:"The last opposing candle before an impulse move — the bar where institutional orders were placed. Price returning to that candle is returning to the institutional entry point. The order block high/low defines the entry zone.",file:"ObZoneRegistry.cs → SMC_OB condition set",dot:"#EF9F27"},
+    {name:"SMF basis retest",role:"When price pulls back to the SMF cloud basis line after an impulse. The basis is a ZLEMA — it moves with the trend. A retest of the basis in the direction of the regime is the lowest-risk entry on the SMF system.",file:"SMF_Native.cs → SMF_Native_Retest",dot:"#EF9F27"},
+    {name:"VWAP retest",role:"When price reclaims VWAP from below (bull) or from above (bear). VWAP is the intraday fair value — the market constantly gravitates toward it. A VWAP reclaim bar entering in the direction of the cross.",file:"VWAP_RTH.cs",dot:"#EF9F27"},
+  ],
+  rule:{color:"#FAEEDA",border:"#FAC775",label:"The rule at this layer",text:"Zone entry is what separates scalping from trend-following. Instead of entering on the breakout candle (extended, high risk), you wait for price to return to a defined zone — FVG, OB, or IFVG — and enter there with a tight stop just beyond the zone. The zone defines both entry and stop. Without a valid zone, there is no entry."},
+  output:"Produces: precise entry price at zone midpoint, tight stop beyond zone edge, T1 at structure target. Refinement of the structure event's initial decision.",
+  chain:[{t:"Direction filter",a:false},{t:"→"},{t:"S/R context",a:false},{t:"→"},{t:"Structure event",a:false},{t:"→"},{t:"Zone entry",a:true},{t:"→"},{t:"Order flow",a:false},{t:"→"},{t:"Tape",a:false},{t:"→"},{t:"Score + gate",a:false},{t:"→"},{t:"Execution",a:false}]
+},
+{
+  color:"#185FA5",bg:"#E6F1FB",dotColor:"#378ADD",
+  num:"5",label:"Order flow",
+  title:"Order flow confirmation",
+  question:"Is institutional money actually participating at this zone right now?",
+  components:[
+    {name:"Bar delta (AskVol − BidVol)",role:"The most direct measure of directional aggression on this bar. Positive delta on a long entry bar means buyers are hitting the ask — they want in NOW. Scored +7 in Layer C. The most important single order flow number for entry confirmation.",file:"FootprintCore.cs → BarDelta via SnapKeys",dot:"#378ADD"},
+    {name:"Absorption score",role:"Detects when large passive orders are absorbing aggressive flow at a price. High absorption at the zone low (bull) means a hidden buyer is holding the price up — the institutional fingerprint. Combined with delta: absorption + positive delta = institutional bid confirmed.",file:"FootprintCore.cs → AbsorptionScore",dot:"#378ADD"},
+    {name:"Stacked imbalances",role:"Three or more consecutive price levels where one side dominated. A stacked bull zone at the entry price means the market treated that price as a strong bid wall across multiple bars.",file:"FootprintCore.cs → StackedBullRun / StackedBearRun",dot:"#378ADD"},
+    {name:"Delta exhaustion",role:"When price is moving up but bar delta is declining bar over bar — buyers are losing conviction despite higher prices. Confirms SHORTS. Mirror: price moving down but delta improving = sellers exhausting = confirms LONGS. Scored +8 when agrees with signal direction.",file:"HostStrategy.cs → DeltaExhaustion calculation",dot:"#378ADD"},
+    {name:"Trapped traders",role:"When a volume cluster forms at an extreme and then price immediately rejects — those traders are trapped. Their stop-loss exits extend the move in your direction. 2-bar deferred detection. Scored +8 in Layer C.",file:"TrappedTraderDetector.cs → FootprintCore",dot:"#378ADD"},
+    {name:"CVD divergence",role:"When price makes a new high but cumulative volume delta is making a lower high — price and institutional flow disagree. Strong predictor of reversal. Confirms shorts on bull divergence, longs on bear divergence.",file:"FootprintDivergenceTracker.cs → SnapKeys.BullDivergence",dot:"#378ADD"},
+  ],
+  rule:{color:"#E6F1FB",border:"#85B7EB",label:"The rule at this layer",text:"Order flow is the proof layer. Structure says the market SHOULD go long here. Order flow confirms that large players ARE going long here. A zone entry without order flow confirmation is a retail trap — you're buying at a level that looks good on a chart but has no institutional participation. Bar delta + absorption together at the zone = institutional confirmation."},
+  output:"Produces: Layer C score contribution (0–22 points). Specific flags can veto signals (opposite-side sweep, opposite-side iceberg). Feeds ConfluenceEngine.",
+  chain:[{t:"Direction filter",a:false},{t:"→"},{t:"S/R context",a:false},{t:"→"},{t:"Structure event",a:false},{t:"→"},{t:"Zone entry",a:false},{t:"→"},{t:"Order flow",a:true},{t:"→"},{t:"Tape",a:false},{t:"→"},{t:"Score + gate",a:false},{t:"→"},{t:"Execution",a:false}]
+},
+{
+  color:"#993C1D",bg:"#FAECE7",dotColor:"#D85A30",
+  num:"6",label:"Tape",
+  title:"Real-time tape aggression",
+  question:"Is there institutional urgency happening right now at this price?",
+  components:[
+    {name:"Sweep detector",role:"Detects when aggressive orders walk through 3+ price levels in under 200ms. A BUY sweep into your long zone means institutions are urgently accumulating. Also vetoes opposite-side signals: a sell sweep into a long setup means sellers are in control RIGHT NOW.",file:"SweepDetector.cs → SnapKeys.BuySweep / SellSweep",dot:"#D85A30"},
+    {name:"Big print detector",role:"Tracks trades that exceed the 95th percentile of recent trade sizes in a 30-second rolling window. A big print in your direction at the entry zone = a large institutional order executed. Net buy big prints vs sell big prints gives directional institutional pressure.",file:"BigPrintDetector.cs → SnapKeys.BigPrintDelta",dot:"#D85A30"},
+    {name:"Velocity detector",role:"Fires when 1-second buy or sell volume exceeds 3x the EMA baseline. A velocity spike in your direction at entry = sudden burst of market orders — someone wants this price NOW. Most useful for timing the exact entry tick within a zone.",file:"VelocityDetector.cs → SnapKeys.VelocityBuySpike",dot:"#D85A30"},
+    {name:"Tape iceberg",role:"Detects repeated aggressor prints at the same price within a 5-second window with 8+ hits. A bull iceberg = repeated sellers hitting bids at the same price, being absorbed by a hidden buyer. The hidden buyer IS the institutional order.",file:"TapeIcebergDetector.cs → SnapKeys.TapeBullIceberg",dot:"#D85A30"},
+  ],
+  rule:{color:"#FAECE7",border:"#F0997B",label:"The rule at this layer",text:"The tape operates in real-time — these signals live and die in milliseconds. Same-side sweep = strong confirmation bonus. Opposite-side sweep = hard veto. You cannot enter a long while aggressive sellers are sweeping levels. The tape tells you whether the entry is being fought over RIGHT NOW."},
+  output:"Produces: real-time veto flags (BuySweep vetoes shorts, SellSweep vetoes longs) and confirmation signals. Read by ConfluenceEngine Layer C. Operates tick-by-tick via TapeRecorder.",
+  chain:[{t:"Direction filter",a:false},{t:"→"},{t:"S/R context",a:false},{t:"→"},{t:"Structure event",a:false},{t:"→"},{t:"Zone entry",a:false},{t:"→"},{t:"Order flow",a:false},{t:"→"},{t:"Tape",a:true},{t:"→"},{t:"Score + gate",a:false},{t:"→"},{t:"Execution",a:false}]
+},
+{
+  color:"#534AB7",bg:"#EEEDFE",dotColor:"#7F77DD",
+  num:"7",label:"Score + gate",
+  title:"Confluence scoring and signal gate",
+  question:"How strong is this setup in total, and does it clear the quality bar?",
+  components:[
+    {name:"ConfluenceEngine — 4 layers",role:"The integrator. Takes all the above layers and produces one number: the NetScore. Layer A (HTF bias, 0–30) + Layer B (S/R proximity, 0–40) + Layer C (order flow, 0–22) + Layer D (structure quality, 0–15) − Penalties. Veto overrides score entirely.",file:"ConfluenceEngine.cs",dot:"#7F77DD"},
+    {name:"SignalRankingEngine",role:"When multiple condition sets fire on the same bar, the ranking engine runs each through ConfluenceEngine and selects the single winner: FinalScore = RawScore × Multiplier. Higher RawScore with poor confluence loses to lower RawScore with perfect confluence.",file:"SignalRankingEngine.cs",dot:"#7F77DD"},
+    {name:"FootprintEntryAdvisor",role:"Final pre-entry order flow veto. Uses the most recent 3 FootprintResult objects. If the current bar shows aggressive counter-flow into a long setup, it can veto the entry or apply a multiplier reduction. Last line of defence against bad entries.",file:"FootprintEntryAdvisor.cs",dot:"#7F77DD"},
+    {name:"SignalGenerator gates",role:"Risk and quality gates. Circuit breaker, stop defined, score above minimum, thin-market suppression, slippage adjustment, RR ratio must be 1.5:1 or better. If any gate fails, the signal is rejected and logged.",file:"SignalGenerator.cs",dot:"#7F77DD"},
+  ],
+  rule:{color:"#EEEDFE",border:"#AFA9EC",label:"The rule at this layer",text:"The scoring layer is the judge. A CHoCH signal in a bearish H4 trend, at an adverse S/R zone, with negative delta, gets a score of ~25 — rejected. The same CHoCH with H4 bullish, at a support zone, with positive delta and absorption, gets ~75 — accepted. Same pattern, completely different context. The score is what makes the difference."},
+  output:"Produces: final SignalObject with EntryPrice, StopPrice, Target1Price, Target2Price, Score, Grade, Contracts. Passed to OrderManager.",
+  chain:[{t:"Direction filter",a:false},{t:"→"},{t:"S/R context",a:false},{t:"→"},{t:"Structure event",a:false},{t:"→"},{t:"Zone entry",a:false},{t:"→"},{t:"Order flow",a:false},{t:"→"},{t:"Tape",a:false},{t:"→"},{t:"Score + gate",a:true},{t:"→"},{t:"Execution",a:false}]
+},
+{
+  color:"#5F5E5A",bg:"#F1EFE8",dotColor:"#888780",
+  num:"8",label:"Execution",
+  title:"Trade execution and management",
+  question:"How do we enter, protect, and exit this trade?",
+  components:[
+    {name:"OrderManager — entry",role:"Submits a limit order at the SignalObject.EntryPrice. Falls back to market if not filled within one bar. Sets the initial stop at StopPrice, T1 limit at Target1Price, T2 limit at Target2Price.",file:"OrderManager.cs → SubmitEntry()",dot:"#888780"},
+    {name:"Dynamic breakeven arm",role:"Once MFE reaches a set-specific ATR fraction, the stop is eligible to move to breakeven. Four triggers: T1 proximity (80% of T1 reached), CVD divergence, regime flip against position, or CVD acceleration slope. First trigger wins.",file:"OrderManager.cs → Stage 3 + Stage 4",dot:"#888780"},
+    {name:"ATR-proportional trailing stop",role:"Post-T1 hit, the stop trails at a set-specific ATR multiple. Impulse set gets the widest trail. Retest gets the tightest. The trail only moves in the profitable direction — it never widens.",file:"OrderManager.cs → Stage 7 ATR trail",dot:"#888780"},
+    {name:"FootprintTradeAdvisor",role:"Runs every bar while the trade is open. Evaluates bar-by-bar footprint deterioration. Outputs Hold / Tighten / ExitEarly. ExitEarly closes the position at market when the order flow story is clearly broken.",file:"FootprintTradeAdvisor.cs",dot:"#888780"},
+    {name:"Slippage model",role:"Before entry: adjusts entry price for expected slippage based on signal score and session. This means stop width and RR ratio are calculated from the realistic fill, not the theoretical close price.",file:"SlippageModel.cs + MathSlippage.cs",dot:"#888780"},
+  ],
+  rule:{color:"#F1EFE8",border:"#B4B2A9",label:"The rule at this layer",text:"The trade has two lives: before T1 (protect the trade) and after T1 (run the winner). Before T1: tight trail, early BE arm, high sensitivity to deterioration. After T1: wider trail, lower sensitivity, let the runner work. The FootprintTradeAdvisor runs the same logic in both phases but with different thresholds."},
+  output:"Produces: filled position, ongoing stop management, partial exit at T1, runner trail, and final flat close. Logs every stop move and exit decision to CSV.",
+  chain:[{t:"Direction filter",a:false},{t:"→"},{t:"S/R context",a:false},{t:"→"},{t:"Structure event",a:false},{t:"→"},{t:"Zone entry",a:false},{t:"→"},{t:"Order flow",a:false},{t:"→"},{t:"Tape",a:false},{t:"→"},{t:"Score + gate",a:false},{t:"→"},{t:"Execution",a:true}]
+}
+];
+
+let current=0;
+const nav=document.getElementById('nav');
+const panels=document.getElementById('panels');
+
+STEPS.forEach((s,i)=>{
+  const btn=document.createElement('button');
+  btn.className='step-btn'+(i===0?' active':'');
+  btn.textContent=s.num+'. '+s.label;
+  if(i===0){btn.style.background=s.color;btn.style.color='#fff';}
+  btn.onclick=()=>show(i);
+  nav.appendChild(btn);
+
+  const panel=document.createElement('div');
+  panel.className='step-panel'+(i===0?' active':'');
+  panel.innerHTML=`
+<div class="role-header">
+  <div class="role-num" style="background:${s.bg};color:${s.color}">${s.num}</div>
+  <div class="role-title-block">
+    <div class="role-title">${s.title}</div>
+    <div class="role-question">${s.question}</div>
+  </div>
+</div>
+<div class="role-body">
+  <div>
+    <div class="role-col-title">Components &amp; their role</div>
+    ${s.components.map(c=>`
+    <div class="component">
+      <div class="comp-dot" style="background:${c.dot}"></div>
+      <div class="comp-info">
+        <div class="comp-name">${c.name}</div>
+        <div class="comp-role">${c.role}</div>
+        <div class="comp-file">${c.file}</div>
+      </div>
+    </div>`).join('')}
+  </div>
+  <div>
+    <div class="role-col-title">The rule</div>
+    <div class="rule-box" style="background:${s.rule.color};border:0.5px solid ${s.rule.border}">
+      <div class="rule-label" style="color:${s.color}">${s.rule.label}</div>
+      <div class="rule-text">${s.rule.text}</div>
+    </div>
+    <div class="output-box">
+      <div class="output-label">Output to next layer</div>
+      <div class="output-text">${s.output}</div>
+    </div>
+  </div>
+</div>
+<div class="chain-preview">
+  ${s.chain.map(c=>c.t==='→'?`<span class="chain-arr">→</span>`:`<span class="chain-pill ${c.a?'':'chain-dim'}" style="${c.a?`background:${s.bg};color:${s.color}`:''}">${c.t}</span>`).join('')}
+</div>
+<div class="nav-row">
+  <button class="nav-btn" onclick="show(${i-1})" ${i===0?'disabled':''}>&#8592; Previous</button>
+  <span style="font-size:11px;color:#888780;align-self:center">${i+1} of ${STEPS.length}</span>
+  <button class="nav-btn" onclick="show(${i+1})" ${i===STEPS.length-1?'disabled':''}>Next &#8594;</button>
+</div>`;
+  panels.appendChild(panel);
+});
+
+function show(i){
+  if(i<0||i>=STEPS.length)return;
+  current=i;
+  document.querySelectorAll('.step-btn').forEach((b,j)=>{
+    b.classList.toggle('active',j===i);
+    b.style.background=j===i?STEPS[j].color:'';
+    b.style.color=j===i?'#fff':'';
+  });
+  document.querySelectorAll('.step-panel').forEach((p,j)=>p.classList.toggle('active',j===i));
+}
+</script>
+</body>
+</html>

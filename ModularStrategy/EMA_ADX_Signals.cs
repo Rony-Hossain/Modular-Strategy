@@ -127,29 +127,23 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (!snapshot.IsValid) return RawDecision.None;
             var p = snapshot.Primary;
 
-            // RTH gate
-            if (p.Session != SessionPhase.EarlySession &&
-                p.Session != SessionPhase.MidSession   &&
-                p.Session != SessionPhase.LateSession)
-            {
-                // Still update EMAs during non-RTH so they are ready at open,
-                // but do not generate signals
-                UpdateEMAs(p.Close);
-                return RawDecision.None;
-            }
-
             // Update EMAs before checking cross
             UpdateEMAs(p.Close);
 
             // Not enough bars for reliable EMA
-            if (_warmupBars < WARMUP_REQUIRED) return RawDecision.None;
+            if (_warmupBars < WARMUP_REQUIRED) 
+            {
+                return new RawDecision { Direction = SignalDirection.None, Label = "REJ:EMA Warmup", IsValid = false };
+            }
 
             // Need both previous and current values
             if (double.IsNaN(_ema9Prev) || double.IsNaN(_ema21Prev)) return RawDecision.None;
 
             // Cooldown
             if (_lastSignalBar >= 0 && p.CurrentBar - _lastSignalBar < SIGNAL_COOLDOWN)
-                return RawDecision.None;
+            {
+                return new RawDecision { Direction = SignalDirection.None, Label = "REJ:EMA Cooldown", IsValid = false };
+            }
 
             // Detect cross
             EMACross cross = MathIndicators.EMA_CrossDetect(
@@ -162,19 +156,33 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             // ── Context gates ─────────────────────────────────────────────
             // Gate 1: SMF regime must agree (or be undefined — neutral regime OK)
             int regime = (int)snapshot.Get(SnapKeys.Regime);
-            if (isLong  && regime < 0) return RawDecision.None;  // bearish regime: no long cross
-            if (!isLong && regime > 0) return RawDecision.None;  // bullish regime: no short cross
+            if (isLong  && regime < 0) 
+            {
+                return new RawDecision { Direction = SignalDirection.Long, Label = "REJ:EMA Regime", IsValid = false };
+            }
+            if (!isLong && regime > 0) 
+            {
+                return new RawDecision { Direction = SignalDirection.Short, Label = "REJ:EMA Regime", IsValid = false };
+            }
 
-            // Gate 2: VWAP side must agree
+            // Gate 2: VWAP side — soft penalty instead of hard gate.
+            // CHANGE (Phase 3.11): Converted from hard REJ to score penalty.
+            // Data: 438 signals killed by VWAP gate had 55.6% sim win rate and
+            // +$12K net SimPnL over 6 weeks. The gate was destroying edge —
+            // EMA crosses below VWAP on longs are early-momentum entries that
+            // often carry price through VWAP. ConfluenceEngine Layer C already
+            // scores VWAP agreement (+5), so double-gating was redundant.
+            // The regime gate (above) remains as the hard directional filter.
+            bool vwapAgrees = true;
             if (snapshot.VWAP > 0)
             {
-                if (isLong  && p.Close < snapshot.VWAP) return RawDecision.None;
-                if (!isLong && p.Close > snapshot.VWAP) return RawDecision.None;
+                if (isLong  && p.Close < snapshot.VWAP) vwapAgrees = false;
+                if (!isLong && p.Close > snapshot.VWAP) vwapAgrees = false;
             }
 
             // ── Score ─────────────────────────────────────────────────────
             double atr = snapshot.ATR > 0 ? snapshot.ATR : _tickSize * 10;
-            int score = 60;
+            int score = vwapAgrees ? 60 : 52;  // -8 penalty when VWAP opposes
 
             // EMA separation — wide cross = stronger momentum
             double emaSep = Math.Abs(_ema9Now - _ema21Now);
@@ -342,23 +350,24 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             // Update ADX state every bar (including non-RTH) so it is warm at open
             ADXResult adx = UpdateADX(p);
 
-            // RTH gate
-            if (p.Session != SessionPhase.EarlySession &&
-                p.Session != SessionPhase.MidSession   &&
-                p.Session != SessionPhase.LateSession)  return RawDecision.None;
-
-            if (!adx.IsValid)    return RawDecision.None;
-            if (!adx.IsTrending) return RawDecision.None;   // ADX < 25
+            if (!adx.IsValid)    
+            {
+                return new RawDecision { Direction = SignalDirection.None, Label = "REJ:ADX Warmup", IsValid = false };
+            }
+            
+            if (!adx.IsTrending) 
+            {
+                // We don't show bubble every bar for "not trending", only when a DI cross happens but ADX is low
+                return RawDecision.None;
+            }
 
             // Cooldown
             if (_lastSignalBar >= 0 && p.CurrentBar - _lastSignalBar < SIGNAL_COOLDOWN)
-                return RawDecision.None;
+            {
+                return new RawDecision { Direction = SignalDirection.None, Label = "REJ:ADX Cooldown", IsValid = false };
+            }
 
             // ── DI cross detection ────────────────────────────────────────
-            // _lastSavedPlusDI/_lastSavedMinusDI = previous bar's DI values,
-            // captured at the START of UpdateADX before this bar's smoothing ran.
-            // adx.PlusDI/MinusDI = this bar's freshly computed DI values.
-            // Comparing them gives a genuine one-bar-lag cross signal.
             bool bullCross = _lastSavedPlusDI <= _lastSavedMinusDI && adx.PlusDI > adx.MinusDI;
             bool bearCross = _lastSavedPlusDI >= _lastSavedMinusDI && adx.PlusDI < adx.MinusDI;
 
@@ -368,13 +377,21 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
             // ── Context gates ─────────────────────────────────────────────
             int regime = (int)snapshot.Get(SnapKeys.Regime);
-            if (isLong  && regime < 0) return RawDecision.None;
-            if (!isLong && regime > 0) return RawDecision.None;
+            if (isLong  && regime < 0) 
+            {
+                return new RawDecision { Direction = SignalDirection.Long, Label = "REJ:ADX Regime", IsValid = false };
+            }
+            if (!isLong && regime > 0) 
+            {
+                return new RawDecision { Direction = SignalDirection.Short, Label = "REJ:ADX Regime", IsValid = false };
+            }
 
+            // VWAP side — soft penalty (same rationale as EMA_Cross Phase 3.11)
+            bool vwapAgrees = true;
             if (snapshot.VWAP > 0)
             {
-                if (isLong  && p.Close < snapshot.VWAP) return RawDecision.None;
-                if (!isLong && p.Close > snapshot.VWAP) return RawDecision.None;
+                if (isLong  && p.Close < snapshot.VWAP) vwapAgrees = false;
+                if (!isLong && p.Close > snapshot.VWAP) vwapAgrees = false;
             }
 
             // Swing structure alignment (optional bonus — no block if absent)
@@ -382,7 +399,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
             // ── Score ─────────────────────────────────────────────────────
             double atr = snapshot.ATR > 0 ? snapshot.ATR : _tickSize * 10;
-            int score = 62;
+            int score = vwapAgrees ? 62 : 54;  // -8 penalty when VWAP opposes
 
             // ADX strength bonus
             if (adx.ADX >= 30) score += 4;

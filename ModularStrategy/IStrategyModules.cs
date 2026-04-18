@@ -238,6 +238,7 @@ namespace MathLogic.Strategy
     /// </summary>
     public struct MarketSnapshot
     {
+        public bool         IsValid  => Primary.CurrentBar > 0;
         public BarSnapshot  Primary  { get; set; }
         public BarSnapshot  Higher1  { get; set; }   // 15-min
         public BarSnapshot  Higher2  { get; set; }   // 60-min (1H)
@@ -309,8 +310,6 @@ namespace MathLogic.Strategy
 
         /// <summary>Current or most recent New York session (09:30–16:00 ET).</summary>
         public PeriodLevel  NewYork      { get; set; }
-
-        public bool         IsValid      { get; set; }
 
         // ── Generic indicator bag ────────────────────────────────────────
         // Condition sets can store any indicator value here by string key.
@@ -450,6 +449,15 @@ namespace MathLogic.Strategy
         public OrderMethod     Method       { get; set; }
         public bool            IsActive     { get; set; }
         public bool            IsFilled     { get; set; }
+        public bool            IsRejected   { get; set; }
+
+        /// <summary>
+        /// Confluence reason string carried from the winning ConfluenceResult.
+        /// Contains layer tags (h4+/h2+/… trap+/ice+/… bp+/vel+/swp+/tice+).
+        /// Written by SignalGenerator, logged by StrategyLogger.SignalAccepted.
+        /// Empty when no confluence detail is available.
+        /// </summary>
+        public string          Detail       { get; set; }
 
         public SignalObject Clone()
         {
@@ -515,8 +523,10 @@ namespace MathLogic.Strategy
     /// </summary>
     public interface ISignalGenerator
     {
-        SignalObject Process(RawDecision decision, MarketSnapshot snapshot);
+        SignalObject Process(RawDecision decision, MarketSnapshot snapshot, string confluenceDetail);
         bool IsBlocked { get; }   // true when circuit breaker or daily limit hit
+        string LastRejectReason { get; }
+        SignalObject LastRejectedSignal { get; }
         void OnSessionOpen();
         void OnFill(SignalObject signal, double fillPrice);
         void OnClose(SignalObject signal, double pnl, DateTime exitTime);
@@ -557,6 +567,8 @@ namespace MathLogic.Strategy
         public int     BarIndex  { get; set; }
         public bool    IsBullish { get; set; }   // true = green, false = red
         public bool    IsBreaker { get; set; }   // breaker block = different opacity
+        public string  Label     { get; set; }
+        public double  Strength  { get; set; }
         public bool    IsValid   { get; set; }
     }
 
@@ -598,5 +610,13 @@ namespace MathLogic.Strategy
         // Resource lifecycle — called by host from OnRenderTargetChanged / Terminated
         void CreateResources(object renderTarget, object writeFactory);
         void DisposeResources();
+
+        void OnRender(
+            object renderTarget,
+            object chartControl,
+            object chartScale,
+            object chartBars,
+            MarketSnapshot snapshot,
+            ORBContext orb);
     }
 }

@@ -486,7 +486,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _orbComplete     = true;
                 _orbCompleteBar  = _host.CurrentBar;
                 _orbCompleteTime = _host.Time[0];
-                _host.Print(string.Format("ORB_VP_DIAG: DataFeed marked ORBComplete=TRUE at {0} High={1} Low={2}", _host.Time[0], _orbHigh, _orbLow));
             }
 
             _orbContext = new ORBContext
@@ -749,11 +748,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Sydney       = _sydney.ToLevel(),
                 Tokyo        = _tokyo.ToLevel(),
                 London       = _london.ToLevel(),
-                NewYork      = _newYork.ToLevel(),
-                // TODO #16 fix: use the single shared constant rather than a magic number.
-                // Previously 14 (ATR warm-up); aligned to BARS_REQUIRED_TO_TRADE = 50
-                // which StrategyLogic and HostStrategy already use.
-                IsValid      = _host.CurrentBar >= FeedConstants.BARS_REQUIRED_TO_TRADE
+                NewYork      = _newYork.ToLevel()
             };
 
             _isReady = _lastSnapshot.IsValid;
