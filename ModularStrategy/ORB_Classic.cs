@@ -151,6 +151,16 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                 double stopPrice    = entryPrice - stopDistance;
                 double targetPrice  = entryPrice + stopDistance;
 
+                if (_log != null)
+                {
+                    string signalId = string.Format("{0}:{1:yyyyMMdd_HHmmss}:{2}", SetId, p.Time, p.CurrentBar);
+                    _log.LogTouchEvent(
+                        signalId, SetId, SignalDirection.Long,
+                        entryPrice, bandLo, bandHi,
+                        stopPrice, targetPrice,
+                        "ORB_VALUE", p.Time, snapshot);
+                }
+
                 _lastBailReason = "FIRED_LONG";
                 return new RawDecision
                 {
@@ -198,6 +208,16 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                 double entryPrice   = p.Close;
                 double stopPrice    = entryPrice + stopDistance;
                 double targetPrice  = entryPrice - stopDistance;
+
+                if (_log != null)
+                {
+                    string signalId = string.Format("{0}:{1:yyyyMMdd_HHmmss}:{2}", SetId, p.Time, p.CurrentBar);
+                    _log.LogTouchEvent(
+                        signalId, SetId, SignalDirection.Short,
+                        entryPrice, bandLo, bandHi,
+                        stopPrice, targetPrice,
+                        "ORB_VALUE", p.Time, snapshot);
+                }
 
                 _lastBailReason = "FIRED_SHORT";
                 return new RawDecision

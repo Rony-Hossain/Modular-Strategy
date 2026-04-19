@@ -151,21 +151,14 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // ── PERFORMANCE TUNING: Macro Regime Gate ──────────────────
                 // FIX (#Layer4): Align Longs with the H4 macro anchor.
-                // CHANGE (Phase 3.11): Reduced floors from 60/70 to 35/40.
-                // Problem: floor=60 was impossible for EMA (max raw=78, needs
-                // multiplier >0.77 which requires ~30+ confluence) and SMC
-                // (raw=60, impossible at any multiplier). Data showed 0 SMC
-                // longs ever traded; EMA longs only passed when H4 was bullish.
-                // 142 SMC touches and 237 EMA long touches were all killed.
-                // New floors still penalize counter-H4 longs (must clear 35/40
-                // instead of default 25) but don't make it mathematically
-                // impossible. ConfluenceEngine vetos still block truly bad setups.
+                // If Long signal fires while H4 bias is Bearish, increase floor to 60.
+                // REFINEMENT (Commit 7): If H4 bias is Undefined (0.0), increase floor to 70.
                 bool isORB = (candidate.ConditionSetId ?? "").StartsWith("ORB_");
                 if (isLong && !isORB)
                 {
                     double h4b = snap.Get(SnapKeys.H4HrEmaBias);
-                    if (h4b < 0) effectiveFloor = Math.Max(effectiveFloor, 35);
-                    else if (h4b == 0) effectiveFloor = Math.Max(effectiveFloor, 40);
+                    if (h4b < 0) effectiveFloor = Math.Max(effectiveFloor, 60);
+                    else if (h4b == 0) effectiveFloor = Math.Max(effectiveFloor, 70);
                 }
 
                 // ── VETO: discard immediately ──────────────────────────────

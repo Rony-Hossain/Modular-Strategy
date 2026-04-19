@@ -356,7 +356,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         public abstract RawDecision Evaluate(MarketSnapshot snapshot);
 
         protected static bool IsRTH(BarSnapshot p)
-            => true; // Blackout handled by HostStrategy
+            => true; // All sessions allowed
     }
 
     // =========================================================================
@@ -571,6 +571,129 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                 BarIndex       = p.CurrentBar,
                 SignalId       = string.Format("{0}:{1:yyyyMMdd}:{2}", SetId, p.Time, p.CurrentBar)
             };
+        }
+    }
+
+    // =========================================================================
+    // SMF_Full_Retest
+    // Source: BullRetestOk / BearRetestOk series in the indicator.
+    //         Regime UNCHANGED. Price wicks through the basis then closes back.
+    //         Cooldown = 12 bars (matches indicator DotCooldown default).
+    //
+    // Bull regime (lastSignal=+1): Low < basisMain → wick below basis → buy dip.
+    // Bear regime (lastSignal=−1): High > basisMain → wick above basis → sell bounce.
+    //
+    // The retest bar MUST close on the correct side of the basis:
+    //   Long retest: Close must be ≥ basisMain (not closed below — rejected).
+    //   Short retest: Close must be ≤ basisMain.
+    //
+    // Entry:  Close of the retest bar.
+    // Stop:   0.4×ATR beyond basisMain (if basis fails to hold, thesis is broken).
+    // T1:     1.5×ATR.
+    // T2:     2.0×ATR (shorter — retest moves are mean-reversion, not trends).
+    // Score:  70 base. +5 if strength > 0.5. +5 if no NonConf warning.
+    // =========================================================================
+
+    public class SMF_Full_Retest : SMFNativeBase_Full
+    {
+        public override string SetId => "SMF_Full_Retest_v1";
+        private const int COOLDOWN = 5;
+
+        public SMF_Full_Retest(SMFFullEngine engine) : base(engine) { }
+
+        public override RawDecision Evaluate(MarketSnapshot snapshot)
+        {
+            if (!snapshot.IsValid) { _bail = "invalid";  return RawDecision.None; }
+            var    p  = snapshot.Primary;
+            double atr = snapshot.ATR;
+            double ts  = p.TickSize > 0 ? p.TickSize : _tickSize;
+
+            if (atr <= 0)  { _bail = "atr_zero"; return RawDecision.None; }
+            if (!IsRTH(p)) { _bail = "non_rth";  return RawDecision.None; }
+            if (_lastFillBar >= 0 && p.CurrentBar - _lastFillBar < COOLDOWN)
+            { _bail = "cooldown"; return RawDecision.None; }
+
+            _e.Update(p, atr, p.CurrentBar);
+
+            if (!_e.IsReady)
+            { _bail = "warmup"; return RawDecision.None; }
+
+            if (!_e.BullRetestOk && !_e.BearRetestOk)
+            { _bail = $"no_retest sig={_e.LastSignal} L={p.Low:F2} H={p.High:F2} basis={_e.BasisMain:F2}";
+              return RawDecision.None; }
+
+            bool isLong = _e.BullRetestOk;
+
+            // Close-side confirmation: bar must close on the regime side of the basis
+            if (isLong  && p.Close < _e.BasisMain)
+            { 
+                _bail = "close_below_basis"; 
+                return new RawDecision
+                {
+                    Direction = SignalDirection.Long,
+                    Source = SignalSource.SMF_Retest,
+                    ConditionSetId = SetId,
+                    EntryPrice = p.Close,
+                    Label = "REJ:SMF Basis",
+                    IsValid = false
+                };
             }
+            if (!isLong && p.Close > _e.BasisMain)
+            { 
+                _bail = "close_above_basis"; 
+                return new RawDecision
+                {
+                    Direction = SignalDirection.Short,
+                    Source = SignalSource.SMF_Retest,
+                    ConditionSetId = SetId,
+                    EntryPrice = p.Close,
+                    Label = "REJ:SMF Basis",
+                    IsValid = false
+                };
             }
-            }
+
+            double entry = p.Close;
+            double basis = _e.BasisMain;
+
+            // Stop: 0.4×ATR beyond basis
+            double stop = isLong
+                ? basis - atr * 0.4
+                : basis + atr * 0.4;
+
+            if (isLong  && stop >= entry) stop = entry - ts * 4;
+            if (!isLong && stop <= entry) stop = entry + ts * 4;
+
+            double t1 = isLong ? entry + 1.5 * atr : entry - 1.5 * atr;
+            double t2 = isLong ? entry + 2.0 * atr : entry - 2.0 * atr;
+
+            double risk = Math.Abs(entry - stop);
+            double rew  = Math.Abs(t1    - entry);
+            if (risk > 0 && rew / risk < 1.2)
+            { _bail = $"rr_low ({rew/risk:F2})"; return RawDecision.None; }
+
+            int score = 70;
+            if (_e.Strength > 0.5) score += 5;
+            if (!_e.NonConfLong && !_e.NonConfShort) score += 5;
+            score = Math.Min(score, 82);
+
+            _bail = "FIRED_" + (isLong ? "LONG" : "SHORT");
+
+            return new RawDecision
+            {
+                Direction      = isLong ? SignalDirection.Long : SignalDirection.Short,
+                Source         = SignalSource.SMF_Retest,
+                ConditionSetId = SetId,
+                EntryPrice     = entry,
+                StopPrice      = stop,
+                TargetPrice    = t1,
+                Target2Price   = t2,
+                Label          = string.Format("SMF Retest {0} basis={1:F2} str={2:F2}",
+                                     isLong ? "long" : "short", basis, _e.Strength),
+                RawScore       = score,
+                IsValid        = true,
+                BarIndex       = p.CurrentBar,
+                SignalId       = string.Format("{0}:{1:yyyyMMdd}:{2}", SetId, p.Time, p.CurrentBar)
+            };
+        }
+    }
+}

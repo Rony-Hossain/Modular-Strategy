@@ -464,12 +464,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
-            // FINDING: 11:00-12:00 ET is a negative-edge window for NQ
-            if (IsEntryBlackout(Time[0]))
-            {
-                return;
-            }
-
             if (_orders.HasOpenPosition || _orders.HasPendingEntry)
             {
                 _orderManager.ManagePosition(snapshot, _activeSignal, in _lastFpResult, in _lastSrResult);
@@ -488,29 +482,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (orbSet != null)
                     _log?.Warn(Time[0], "ORB_DIAG: {0}", orbSet.LastDiagnostic);
             }
-            // ── INSTRUMENTATION: Log every logic touch before any filtering occurs ──
-            if (_log != null)
-            {
-                for (int i = 0; i < _engine.CandidateCount; i++)
-                {
-                    var c = _engine.CandidateBuffer[i];
-                    if (c.EntryPrice > 0 && c.StopPrice > 0 && (c.TargetPrice > 0 || c.Target2Price > 0))
-                    {
-                        _log.LogTouchEvent(
-                            c.SignalId, 
-                            c.ConditionSetId, 
-                            c.Direction,
-                            c.EntryPrice, 
-                            0, 0,
-                            c.StopPrice, 
-                            c.TargetPrice > 0 ? c.TargetPrice : c.Target2Price,
-                            c.Label, 
-                            snapshot.Primary.Time, 
-                            snapshot);
-                    }
-                }
-            }
-
             int candidateCountForRanking = ApplyFootprintEntryAdvisor(Time[0]);
             _rankingEngine.SetVolumetricMode(snapshot.GetFlag(SnapKeys.HasVolumetric));
             RawDecision decision = _rankingEngine.Rank(_engine.CandidateBuffer, candidateCountForRanking, snapshot, in _lastSrResult);
@@ -557,18 +528,6 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if (decision.IsValid)
             {
-                // Action 3: H4 "Trending" Gate. 
-                // Data proves H4 Neutral (0.0) is a graveyard for this strategy (-$140 edge).
-                if (Math.Abs(_h4hrEmaBias) < 0.5)
-                {
-                    _ui?.AddSignal(new SignalObject { 
-                        Direction = decision.Direction, Label = "REJ:H4 Neutral", IsRejected = true, 
-                        BarIndex = snapshot.Primary.CurrentBar, EntryPrice = decision.EntryPrice,
-                        SignalTime = snapshot.Primary.Time, ConditionSetId = decision.ConditionSetId 
-                    });
-                    return; 
-                }
-
                 SignalObject signal = _signalGen.Process(decision, snapshot, _rankingEngine.LastWinnerDetail);
                 if (signal != null)
                 {
@@ -600,14 +559,6 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             TimeSpan tod = t.TimeOfDay;
             return tod >= _entryBlockStart && tod < _entryBlockEnd;
-        }
-
-        private static readonly TimeSpan _blackoutStart = new TimeSpan(11, 0, 0);
-        private static readonly TimeSpan _blackoutEnd   = new TimeSpan(12, 0, 0);
-        private static bool IsEntryBlackout(DateTime t)
-        {
-            TimeSpan tod = t.TimeOfDay;
-            return tod >= _blackoutStart && tod < _blackoutEnd;
         }
 
         protected override void OnMarketData(MarketDataEventArgs e)
@@ -881,11 +832,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         protected virtual IStrategyLogic CreateLogic(InstrumentKind inst) {
-            var smfEngine = new ConditionSets.SMFNativeEngine();
-            var smfFull   = new ConditionSets.SMFFullEngine();
-            
+            var smfFull = new ConditionSets.SMFFullEngine();
             return new StrategyEngine(_log, 
-                new ConditionSets.SMF_Native_BandReclaim(smfEngine), 
+                    new ConditionSets.SMF_Native_BandReclaim(smfEngine), 
                 new ConditionSets.SMF_Full_Impulse(smfFull),
                 new ConditionSets.SMF_Full_Switch(smfFull),
                 new ConditionSets.SMC_BOS(), 

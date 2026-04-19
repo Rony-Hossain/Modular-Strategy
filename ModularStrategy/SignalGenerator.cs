@@ -288,9 +288,6 @@ namespace NinjaTrader.NinjaScript.Strategies
             // }
 
             // ── All gates passed — build signal ──
-            string signalId = string.Format("{0}:{1:yyyyMMdd}:{2}", 
-                decision.ConditionSetId ?? "SIG", _lastBarTime, snapshot.Primary.CurrentBar);
-
             var accepted = new SignalObject
             {
                 Direction    = decision.Direction,
@@ -305,7 +302,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Grade        = grade,
                 Label          = decision.Label,
                 ConditionSetId = decision.ConditionSetId ?? "",
-                SignalId       = signalId,
+                SignalId       = decision.SignalId       ?? "",
                 BarIndex       = snapshot.Primary.CurrentBar,
                 SignalTime     = snapshot.Primary.Time,
                 CandleHigh     = snapshot.Primary.High,
@@ -316,7 +313,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IsFilled       = false,
                 Detail         = confluenceDetail ?? ""
             };
-
 
             // Log slippage context alongside signal acceptance.
             // Warn() is the correct public method — Print() is private on StrategyLogger.
@@ -349,12 +345,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Capture the rejected signal for UI rendering
             if (_lastDecision.IsValid && _lastSnapshot.IsValid)
             {
-                string signalId = string.Format("{0}:{1:yyyyMMdd}:{2}", 
-                    _lastDecision.ConditionSetId ?? "REJ", _lastBarTime, _lastSnapshot.Primary.CurrentBar);
-
                 LastRejectedSignal = new SignalObject
                 {
-                    SignalId     = signalId,
                     Direction    = _lastDecision.Direction,
                     Source       = _lastDecision.Source,
                     EntryPrice   = _lastDecision.EntryPrice,

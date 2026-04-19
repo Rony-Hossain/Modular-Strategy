@@ -209,23 +209,33 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (atr <= 0)
             { _lastBailReason = "atr_zero"; return RawDecision.None; }
 
+            // ── Guard: RTH session only ───────────────────────────────────────
+            if (p.Session != SessionPhase.EarlySession  &&
+                p.Session != SessionPhase.MidSession    &&
+                p.Session != SessionPhase.LateSession)
+            { _lastBailReason = "session_non_rth"; return RawDecision.None; }
+
             // ── Guard: cooldown ────────────────────────────────────────────────
             if (_lastFillBar >= 0 && p.CurrentBar - _lastFillBar < REENTRY_COOLDOWN)
-            { 
-                return new RawDecision { Direction = SignalDirection.None, Label = "REJ:Ice Cooldown", IsValid = false }; 
-            }
+            { _lastBailReason = "cooldown"; return RawDecision.None; }
 
             // ── Guard: volumetric data required ───────────────────────────────
+            // All three signal tiers (exhaustion, absorption, iceberg) require
+            // footprint data. Without volumetric, none of these signals fire.
             if (!snapshot.GetFlag(SnapKeys.HasVolumetric))
-            { 
-                _lastBailReason = "no_volumetric";
-                return new RawDecision { Direction = SignalDirection.None, Label = "REJ:Ice NoVol", IsValid = false };
-            }
+            { _lastBailReason = "no_volumetric"; return RawDecision.None; }
 
             // ── TIER 1: Exhaustion detection ───────────────────────────────────
+            // Read both exhaustion detectors. Either one is sufficient to qualify.
+            // Both firing simultaneously earns a score bonus.
+
+            // Bar-level exhaustion (FootprintCore Phase 2.3)
             bool barLevelBearExh = snapshot.GetFlag(SnapKeys.BearExhaustion); // sellers ran out → LONG
             bool barLevelBullExh = snapshot.GetFlag(SnapKeys.BullExhaustion); // buyers ran out → SHORT
 
+            // 3-bar delta exhaustion trend (HostStrategy)
+            // -1.0 = bear exhaustion (delta improving vs lower price) → LONG
+            // +1.0 = bull exhaustion (delta weakening vs higher price) → SHORT
             double deltaExh = snapshot.Get(SnapKeys.DeltaExhaustion);
             bool deltaBearExh = deltaExh < -0.5;  // bear exhaustion → LONG
             bool deltaBullExh = deltaExh > 0.5;   // bull exhaustion → SHORT
@@ -237,19 +247,27 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             { _lastBailReason = "no_exhaustion"; return RawDecision.None; }
 
             // ── TIER 2: Absorption gate ────────────────────────────────────────
+            // The institutional wall must be present. Exhaustion without absorption
+            // is just thin volume — the market ran out of participants because
+            // nobody cared, not because a hidden iceberg held the level.
             double absScore = snapshot.Get(SnapKeys.AbsorptionScore);
             if (absScore < MIN_ABSORPTION_SCORE)
-            { 
-                _lastBailReason = $"absorption_low ({absScore:F1}<{MIN_ABSORPTION_SCORE})"; 
-                return new RawDecision { Direction = longExhaustion ? SignalDirection.Long : SignalDirection.Short, Label = "REJ:Ice LowAbs", IsValid = false };
-            }
+            { _lastBailReason = $"absorption_low ({absScore:F1}<{MIN_ABSORPTION_SCORE})"; return RawDecision.None; }
 
             // ── TIER 3: Iceberg identification ────────────────────────────────
+            // At least one iceberg signal must confirm on the absorbing side.
+            // Bar-level and tape-level detectors operate at different resolutions:
+            //   BullIceberg   = institutional bid held at bar Low for 2+ bars
+            //   TapeBullIceberg = iceberg still reloading at tick level right now
+
             bool barBullIce  = snapshot.GetFlag(SnapKeys.BullIceberg);
             bool barBearIce  = snapshot.GetFlag(SnapKeys.BearIceberg);
             bool tapeBullIce = snapshot.GetFlag(SnapKeys.TapeBullIceberg);
             bool tapeBearIce = snapshot.GetFlag(SnapKeys.TapeBearIceberg);
 
+            // Alternative Tier 3: high absorption + favorable close position.
+            // If the bar closed in the favorable portion of its range AND absorption
+            // is strong, the wall held even if the strict iceberg pattern didn't fire.
             double barRange = p.High - p.Low;
             double closePct = barRange > 0 ? (p.Close - p.Low) / barRange : 0.5;
             bool altIceLong  = absScore >= ALT_ICE_ABS_SCORE && closePct >= ALT_ICE_CLOSE_PCT;
@@ -259,43 +277,39 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             bool shortIceberg = barBearIce  || tapeBearIce  || altIceShort;
 
             if (!longIceberg && !shortIceberg)
-            { 
-                _lastBailReason = "no_iceberg"; 
-                return new RawDecision { Direction = longExhaustion ? SignalDirection.Long : SignalDirection.Short, Label = "REJ:Ice NoIce", IsValid = false };
-            }
+            { _lastBailReason = "no_iceberg"; return RawDecision.None; }
 
             // ── Determine direction ────────────────────────────────────────────
+            // Both exhaustion and iceberg must agree on the same side.
+            // If both sides have a signal (rare but possible), long takes priority
+            // — exhaustion at lows is more structurally reliable for scalping.
             SignalDirection direction = SignalDirection.None;
+
             if      (longExhaustion  && longIceberg)  direction = SignalDirection.Long;
             else if (shortExhaustion && shortIceberg) direction = SignalDirection.Short;
 
             if (direction == SignalDirection.None)
-            { 
-                _lastBailReason = $"exh_ice_mismatch"; 
-                return new RawDecision { Direction = longExhaustion ? SignalDirection.Long : SignalDirection.Short, Label = "REJ:Ice SideMismatch", IsValid = false };
-            }
+            { _lastBailReason = $"exh_ice_mismatch (longExh={longExhaustion} longIce={longIceberg} shortExh={shortExhaustion} shortIce={shortIceberg})"; return RawDecision.None; }
 
             bool isLong = direction == SignalDirection.Long;
 
             // ── Hard veto: opposing sweep active ──────────────────────────────
+            // If aggressive sellers are still sweeping (for long), exhaustion
+            // is not complete. The iceberg may be still absorbing — not yet done.
             if (isLong  && snapshot.GetFlag(SnapKeys.SellSweep))
-            { 
-                return new RawDecision { Direction = SignalDirection.Long, Label = "REJ:Ice SweepVeto", IsValid = false, EntryPrice = p.Close, StopPrice = p.Low - atr*0.2 }; 
-            }
+            { _lastBailReason = "veto_sell_sweep"; return RawDecision.None; }
             if (!isLong && snapshot.GetFlag(SnapKeys.BuySweep))
-            { 
-                return new RawDecision { Direction = SignalDirection.Short, Label = "REJ:Ice SweepVeto", IsValid = false, EntryPrice = p.Close, StopPrice = p.High + atr*0.2 }; 
-            }
+            { _lastBailReason = "veto_buy_sweep"; return RawDecision.None; }
 
             // ── Hard veto: macro CVD divergence opposing ───────────────────────
+            // BearDivergence on a long entry = CVD shows sellers absorbing at
+            // recent swing highs. The macro institutional flow is bearish. Even
+            // if sellers locally exhausted at this bar's low, the macro context
+            // is against us. This is the "failed divergence" the paper warns about.
             if (isLong  && snapshot.GetFlag(SnapKeys.BearDivergence))
-            { 
-                return new RawDecision { Direction = SignalDirection.Long, Label = "REJ:Ice MacroVeto", IsValid = false, EntryPrice = p.Close, StopPrice = p.Low - atr*0.2 }; 
-            }
+            { _lastBailReason = "veto_bear_divergence_macro"; return RawDecision.None; }
             if (!isLong && snapshot.GetFlag(SnapKeys.BullDivergence))
-            { 
-                return new RawDecision { Direction = SignalDirection.Short, Label = "REJ:Ice MacroVeto", IsValid = false, EntryPrice = p.Close, StopPrice = p.High + atr*0.2 }; 
-            }
+            { _lastBailReason = "veto_bull_divergence_macro"; return RawDecision.None; }
 
             // ── Stop placement ─────────────────────────────────────────────────
             // Stop goes just beyond the bar extreme where exhaustion fired.
