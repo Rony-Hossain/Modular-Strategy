@@ -833,8 +833,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         protected virtual IStrategyLogic CreateLogic(InstrumentKind inst) {
             var smfFull = new ConditionSets.SMFFullEngine();
-            return new StrategyEngine(_log, 
-                    new ConditionSets.SMF_Native_BandReclaim(smfEngine), 
+            var smfEngine = new ConditionSets.SMFNativeEngine();
+            return new StrategyEngine(_log,
+                    new ConditionSets.SMF_Native_BandReclaim(smfEngine),
+ 
                 new ConditionSets.SMF_Full_Impulse(smfFull),
                 new ConditionSets.SMF_Full_Switch(smfFull),
                 new ConditionSets.SMC_BOS(), 
