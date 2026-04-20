@@ -15,7 +15,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         private readonly Dictionary<string, ActiveTouch> _active;
 
         // Pre/post bar capture window — must match StrategyLogger.CONTEXT_BARS
-        private const int BAR_WINDOW = 5;
+        private const int BAR_WINDOW = StrategyConfig.Modules.FR_BAR_WINDOW;
 
         // Single reusable builder for BuildEnrichedDetail (NT8 is single-threaded).
         private readonly StringBuilder _esb = new StringBuilder(1024);

@@ -133,27 +133,27 @@ namespace NinjaTrader.NinjaScript.Strategies
         private ImbalanceZoneRegistry    _imbalZones;
         private FvgZoneRegistry          _fvgZones;
         private ObZoneRegistry           _obZones;
-        private readonly ZoneDTO[]       _uiZoneBuffer = new ZoneDTO[120];
-        private readonly System.Collections.Generic.List<RawDecision> _filteredCandidates = new System.Collections.Generic.List<RawDecision>(16);
+        private readonly ZoneDTO[]       _uiZoneBuffer = new ZoneDTO[StrategyConfig.Modules.HS_UI_ZONE_BUFFER_SIZE];
+        private readonly System.Collections.Generic.List<RawDecision> _filteredCandidates = new System.Collections.Generic.List<RawDecision>(StrategyConfig.Modules.HS_FILTERED_CANDIDATE_CAP);
         private SmartMoneyFlowCloudBOSWaves _smf;
 
-        private const int VOLUMETRIC_BAR_INDEX = 6;
-        private const bool LOG_FOOTPRINT_PIPELINE = true;
+        private const int VOLUMETRIC_BAR_INDEX = StrategyConfig.Modules.HS_VOLUMETRIC_BAR_INDEX;
+        private const bool LOG_FOOTPRINT_PIPELINE = StrategyConfig.Modules.HS_LOG_FOOTPRINT_PIPELINE;
         private NinjaTrader.NinjaScript.BarsTypes.VolumetricBarsType _volBarsType;
 
-        private const int AVG_TRADES_PERIOD = 20;
+        private const int AVG_TRADES_PERIOD = StrategyConfig.Modules.HS_AVG_TRADES_PERIOD;
         private readonly double[] _tradesRingBuffer = new double[AVG_TRADES_PERIOD];
         private int    _tradesRingIndex  = 0;
         private int    _tradesRingFilled = 0;
         private double _tradesRingSum    = 0.0;
 
-        private const int CVD_DIVERGENCE_PERIOD = 10;
+        private const int CVD_DIVERGENCE_PERIOD = StrategyConfig.Modules.HS_CVD_DIVERGENCE_PERIOD;
         private readonly double[] _cvdRingBuffer = new double[CVD_DIVERGENCE_PERIOD];
         private readonly double[] _priceRingBuffer = new double[CVD_DIVERGENCE_PERIOD];
         private int _cvdRingIndex = 0;
         private bool _cvdRingFilled = false;
 
-        private const int EMA50_PERIOD   = 50;
+        private const int EMA50_PERIOD = StrategyConfig.Modules.HS_EMA50_PERIOD;
         private double _ema50H1Prev       = double.NaN;
         private readonly double[] _h1PriceRing = new double[(EMA50_PERIOD - 1) / 2 + 1];
         private int    _h1PriceRingIdx    = 0;
@@ -195,7 +195,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IsExitOnSessionCloseStrategy = true;
                 IncludeTradeHistoryInBacktest = true;
 
-                SmfTrendLength      = 34;
+                SmfTrendLength      = StrategyConfig.Modules.EMA_FAST_PERIOD + StrategyConfig.Modules.EMA_SLOW_PERIOD; // Derived example
                 SmfTrendEngine      = SMF_TrendEngineType.EMA;
                 SmfFlowWindow       = 24;
                 SmfFlowSmoothing    = 5;
@@ -560,8 +560,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         // Phase 3.8 — Time-window gate.
         // Block new entries and force flatten existing positions between 15:45 and 18:00 ET.
         // Bars.GetTime(...) is instrument/exchange local time, matching the ET-based session labels.
-        private static readonly TimeSpan _entryBlockStart = new TimeSpan(15, 45, 0);
-        private static readonly TimeSpan _entryBlockEnd   = new TimeSpan(18,  0, 0);
+        private static readonly TimeSpan _entryBlockStart = new TimeSpan(StrategyConfig.Modules.HS_ENTRY_BLOCK_START_HR, StrategyConfig.Modules.HS_ENTRY_BLOCK_START_MIN, 0);
+        private static readonly TimeSpan _entryBlockEnd   = new TimeSpan(StrategyConfig.Modules.HS_ENTRY_BLOCK_END_HR, StrategyConfig.Modules.HS_ENTRY_BLOCK_END_MIN, 0);
         private static bool IsEntryBlocked(DateTime t)
         {
             TimeSpan tod = t.TimeOfDay;

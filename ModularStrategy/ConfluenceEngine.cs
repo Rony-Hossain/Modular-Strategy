@@ -36,34 +36,34 @@ namespace NinjaTrader.NinjaScript.Strategies
     public static class ConfluenceEngine
     {
         // ── Layer A weights (MTFA) ────────────────────────────────────────
-        private const int LAYER_A_H4 = 14;   // 4H — dominant macro anchor
-        private const int LAYER_A_H2 = 10;   // 2H — intermediate filter
-        private const int LAYER_A_H1 =  6;   // 1H — execution TF bias
+        private const int LAYER_A_H4 = StrategyConfig.Confluence.LAYER_A_H4;   // 4H — dominant macro anchor
+        private const int LAYER_A_H2 = StrategyConfig.Confluence.LAYER_A_H2;   // 2H — intermediate filter
+        private const int LAYER_A_H1 = StrategyConfig.Confluence.LAYER_A_H1;   // 1H — execution TF bias
 
         // Layer B weights are owned by LevelRegistry — see LevelRegistry.cs.
         // ConfluenceEngine reads the pre-computed FinalScore via LevelRegistry.Score().
 
         // ── Layer C weights (OrderFlow) ───────────────────────────────────
-        private const int LAYER_C_DIVERGENCE  = 15;  // CVD divergence confirms
-        private const int LAYER_C_DELTA_SL    =  8;  // buying at bar low (DeltaSl)
-        private const int LAYER_C_ABS_MAX     =  7;  // absorption — graduated below
-        private const int LAYER_C_DELTA_EXHST =  8;  // delta exhaustion confirms signal direction
-        private const int LAYER_C_IMBAL_ZONE  =  6;  // price at historical imbalance zone
-        private const int LAYER_C_TRAPPED_AGREE = 8;   // trapped flag on opposite side confirms direction
-        private const int LAYER_C_ICEBERG_AGREE = 8;   // iceberg flag on SAME side confirms direction
-        private const int LAYER_C_EXHAUSTION_AGREE =  8;   // opposite-side exhaustion confirms direction
-        private const int LAYER_C_UNFINISHED_AGREE =  4;   // target-side magnet — lighter, no veto
+        private const int LAYER_C_DIVERGENCE = StrategyConfig.Confluence.LAYER_C_DIVERGENCE;  // CVD divergence confirms
+        private const int LAYER_C_DELTA_SL = StrategyConfig.Confluence.LAYER_C_DELTA_SL;  // buying at bar low (DeltaSl)
+        private const int LAYER_C_ABS_MAX = StrategyConfig.Confluence.LAYER_C_ABS_MAX;  // absorption — graduated below
+        private const int LAYER_C_DELTA_EXHST = StrategyConfig.Confluence.LAYER_C_DELTA_EXHST;  // delta exhaustion confirms signal direction
+        private const int LAYER_C_IMBAL_ZONE = StrategyConfig.Confluence.LAYER_C_IMBAL_ZONE;  // price at historical imbalance zone
+        private const int LAYER_C_TRAPPED_AGREE = StrategyConfig.Confluence.LAYER_C_TRAPPED_AGREE;   // trapped flag on opposite side confirms direction
+        private const int LAYER_C_ICEBERG_AGREE = StrategyConfig.Confluence.LAYER_C_ICEBERG_AGREE;   // iceberg flag on SAME side confirms direction
+        private const int LAYER_C_EXHAUSTION_AGREE = StrategyConfig.Confluence.LAYER_C_EXHAUSTION_AGREE;   // opposite-side exhaustion confirms direction
+        private const int LAYER_C_UNFINISHED_AGREE = StrategyConfig.Confluence.LAYER_C_UNFINISHED_AGREE;   // target-side magnet — lighter, no veto
         // Phase 3.7: same-side bonuses removed after autopsy showed they elevated low-quality longs.
         // Sweep-opposition veto retained below. Other tape flags read but not scored.
 
         // ── Layer D weights (Price action trigger) ────────────────────────
-        private const int LAYER_D_FULL_STRUCT = 12;  // HH+HL or LH+LL confirmed
-        private const int LAYER_D_TREND_ONLY  =  8;  // swing trend agrees only
+        private const int LAYER_D_FULL_STRUCT = StrategyConfig.Confluence.LAYER_D_FULL_STRUCT;  // HH+HL or LH+LL confirmed
+        private const int LAYER_D_TREND_ONLY = StrategyConfig.Confluence.LAYER_D_TREND_ONLY;  // swing trend agrees only
 
         // ── Penalty weights ───────────────────────────────────────────────
-        private const int PENALTY_H4 =  8;
-        private const int PENALTY_H2 =  5;
-        private const int PENALTY_BOTH_EXTRA = 5;    // stacks when both oppose
+        private const int PENALTY_H4 = StrategyConfig.Penalties.PENALTY_H4;
+        private const int PENALTY_H2 = StrategyConfig.Penalties.PENALTY_H2;
+        private const int PENALTY_BOTH_EXTRA = StrategyConfig.Penalties.PENALTY_BOTH_EXTRA;    // stacks when both oppose
 
         // Phase 3.9 (2026-04-16) REVERTED — sweep-chase penalty on same-side
         // sweep regressed net $2.4K via ranker cascade effects. The direct filter
@@ -158,25 +158,25 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // BarDelta from DataFeed (always populated)
             double bd = snap.Get(SnapKeys.BarDelta);
-            if (isLong  && bd > 0) layerC += 7;
-            if (!isLong && bd < 0) layerC += 7;
+            if (isLong  && bd > 0) layerC += StrategyConfig.Confluence.PROXY_BAR_DELTA;
+            if (!isLong && bd < 0) layerC += StrategyConfig.Confluence.PROXY_BAR_DELTA;
 
             // SMF Regime agreement
             int regime = (int)snap.Get(SnapKeys.Regime);
-            if ((isLong && regime > 0) || (!isLong && regime < 0)) layerC += 6;
+            if ((isLong && regime > 0) || (!isLong && regime < 0)) layerC += StrategyConfig.Confluence.PROXY_REGIME;
 
             // VWAP side
             if (snap.VWAP > 0)
             {
                 bool aboveVwap = p.Close > snap.VWAP;
-                if ((isLong && aboveVwap) || (!isLong && !aboveVwap)) layerC += 5;
+                if ((isLong && aboveVwap) || (!isLong && !aboveVwap)) layerC += StrategyConfig.Confluence.PROXY_VWAP_SIDE;
             }
 
             // Higher1 (15-min) bar direction
             if (snap.Higher1.Closes != null && snap.Higher1.Closes.Length >= 2)
             {
                 bool h1Rising = snap.Higher1.Close > snap.Higher1.Closes[1];
-                if ((isLong && h1Rising) || (!isLong && !h1Rising)) layerC += 4;
+                if ((isLong && h1Rising) || (!isLong && !h1Rising)) layerC += StrategyConfig.Confluence.PROXY_H1_BAR_DIR;
             }
 
             // ── CVD Divergence agreement ────────────────────────────────────
@@ -254,8 +254,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             // CvdAccel (Phase 1.2) will replace the static CUMDELTA_EXHAUSTED
             // threshold with a derivative-based exhaustion check.
 
-            const double CUMDELTA_EXHAUSTED = 2500.0;
-            const double WEAK_STACK_COUNT   = 3.0;
+            const double CUMDELTA_EXHAUSTED = StrategyConfig.Vetoes.CUMDELTA_EXHAUSTED;
+            const double WEAK_STACK_COUNT = StrategyConfig.Vetoes.WEAK_STACK_COUNT;
 
             // Rule 1 — Divergence opposite the trade direction.
             // Long with bearish divergence = buying into weakness the tape already sees.
@@ -383,8 +383,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 double poc = snap.Get(SnapKeys.POC);
                 double val = snap.Get(SnapKeys.VALow);
-                if (poc > 0 && p.Close > poc) penalty += 15; // Penalty for buying above fair value
-                if (val > 0 && p.Close < val) rawTotal += 10; // Bonus for buying at deep discount
+                if (poc > 0 && p.Close > poc) penalty += StrategyConfig.Confluence.PENALTY_ABOVE_FAIR; // Penalty for buying above fair value
+                if (val > 0 && p.Close < val) rawTotal += StrategyConfig.Confluence.BONUS_DEEP_DISCOUNT; // Bonus for buying at deep discount
             }
 
             int netScore = Math.Max(0, rawTotal - penalty);
@@ -547,17 +547,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             // FIX (#idea2): Veto trades entered too close to adverse structural levels.
             // If within 0.20 ATR of a major level (Support for Shorts, Resistance for Longs),
             // return -1 to signal a VETO to the ranking engine.
-            if (nearAdverse.IsValid && adverseAtr > 0.0 && adverseAtr <= 0.20)
+            if (nearAdverse.IsValid && adverseAtr > 0.0 && adverseAtr <= StrategyConfig.Vetoes.BRICK_WALL_ATR)
             {
                 return -1; // Special sentinel for VETO
             }
 
-            if (atFavorable) score += 18;
+            if (atFavorable) score += StrategyConfig.Confluence.SR_AT_FAVORABLE;
             else if (nearFavorable.IsValid)
             {
-                if      (favorableAtr > 0.0 && favorableAtr <= 0.35) score += 12;
-                else if (favorableAtr > 0.0 && favorableAtr <= 0.75) score += 8;
-                else if (favorableAtr > 0.0 && favorableAtr <= 1.25) score += 4;
+                if      (favorableAtr > 0.0 && favorableAtr <= 0.35) score += StrategyConfig.Confluence.SR_NEAR_FAV_CLOSE;
+                else if (favorableAtr > 0.0 && favorableAtr <= 0.75) score += StrategyConfig.Confluence.SR_NEAR_FAV_MID;
+                else if (favorableAtr > 0.0 && favorableAtr <= 1.25) score += StrategyConfig.Confluence.SR_NEAR_FAV_FAR;
             }
 
             bool favorableContext = atFavorable
@@ -565,23 +565,23 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if (strongFavorable.IsValid && favorableContext)
             {
-                if      (strongFavorable.Strength >= 30) score += 8;
-                else if (strongFavorable.Strength >= 20) score += 5;
-                else if (strongFavorable.Strength >= 12) score += 3;
+                if      (strongFavorable.Strength >= 30) score += StrategyConfig.Confluence.SR_STRONG_FAV_S3;
+                else if (strongFavorable.Strength >= 20) score += StrategyConfig.Confluence.SR_STRONG_FAV_S2;
+                else if (strongFavorable.Strength >= 12) score += StrategyConfig.Confluence.SR_STRONG_FAV_S1;
 
                 if (SRSourceTypeHelper.IsStacked(strongFavorable.Sources))
-                    score += 6;
+                    score += StrategyConfig.Confluence.SR_STACKED_BONUS;
             }
 
             if (nearAdverse.IsValid)
             {
-                if      (adverseAtr > 0.0 && adverseAtr <= 0.35) score -= 10;
-                else if (adverseAtr > 0.0 && adverseAtr <= 0.75) score -= 6;
-                else if (adverseAtr > 0.0 && adverseAtr <= 1.25) score -= 3;
+                if      (adverseAtr > 0.0 && adverseAtr <= 0.35) score -= StrategyConfig.Confluence.SR_NEAR_ADV_CLOSE;
+                else if (adverseAtr > 0.0 && adverseAtr <= 0.75) score -= StrategyConfig.Confluence.SR_NEAR_ADV_MID;
+                else if (adverseAtr > 0.0 && adverseAtr <= 1.25) score -= StrategyConfig.Confluence.SR_NEAR_ADV_FAR;
             }
 
             if (score < 0)  score = 0;
-            if (score > 40) score = 40;
+            if (score > StrategyConfig.Confluence.LAYER_B_MAX_CAP) score = StrategyConfig.Confluence.LAYER_B_MAX_CAP;
             return score;
         }
 

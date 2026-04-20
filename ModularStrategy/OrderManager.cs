@@ -91,7 +91,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// Keep true until exit behaviour (MFE lock, set-specific trails) is
         /// validated in backtest — separates execution quality from size effects.
         /// </summary>
-        private const bool USE_FIXED_SIZE_ONE = true;
+        private const bool USE_FIXED_SIZE_ONE = StrategyConfig.Policy.USE_FIXED_SIZE_ONE;
 
         /// <summary>
         /// Validation mode for FootprintTradeAdvisor integration.
@@ -102,7 +102,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// can review TA_*_SHADOW rows without already changing behavior.
         /// Flip to false only after validation is complete, then retire 6.5 / 6.75.
         /// </summary>
-        private const bool TRADE_ADVISOR_COMPARE_ONLY = true;
+        private const bool TRADE_ADVISOR_COMPARE_ONLY = StrategyConfig.Policy.TRADE_ADVISOR_COMPARE_ONLY;
 
         // ===================================================================
         // DEPENDENCIES
@@ -190,48 +190,48 @@ namespace NinjaTrader.NinjaScript.Strategies
         // commitment on the bar. The bounce is noise, not a reversal signal.
         // Pre-T1: standard threshold. Post-T1: stricter (lower) because you're
         // protecting confirmed profit — higher cost of a false positive.
-        private const double VETO_CONVICTION_PRE_T1  = 0.08;   // validate: distribution analysis
-        private const double VETO_CONVICTION_POST_T1 = 0.05;   // validate: must be stricter
+        private const double VETO_CONVICTION_PRE_T1 = StrategyConfig.Policy.VETO_CONVICTION_PRE_T1;   // validate: distribution analysis
+        private const double VETO_CONVICTION_POST_T1 = StrategyConfig.Policy.VETO_CONVICTION_POST_T1;   // validate: must be stricter
 
         // Volume ratio: VolTrades / AvgTrades. Below this = thin bar.
         // Only veto on thin bars — high-volume bars with low conviction
         // are absorption battles (buyers and sellers fighting), not noise.
-        private const double VETO_VOL_RATIO = 0.60;             // validate: distribution analysis
+        private const double VETO_VOL_RATIO = StrategyConfig.Policy.VETO_VOL_RATIO;             // validate: distribution analysis
 
         // Range filter: bar range in ticks / ATR ticks. Small range = no movement.
         // Combined with thin volume, this confirms the bar is noise.
         // High volume + small range = absorption (DON'T veto).
-        private const double VETO_MAX_RANGE_ATR = 0.30;         // validate: distribution analysis
+        private const double VETO_MAX_RANGE_ATR = StrategyConfig.Policy.VETO_MAX_RANGE_ATR;         // validate: distribution analysis
 
         // Maximum consecutive veto bars. After this many in a row, force trail update.
         // 2 bars × 5 min = 10 minutes of frozen trail. 3+ consecutive weak bars
         // is not a pullback — it's a trend change.
-        private const int MAX_CONSECUTIVE_VETOES = 2;
+        private const int MAX_CONSECUTIVE_VETOES = StrategyConfig.Policy.MAX_CONSECUTIVE_VETOES;
 
         // MFE drawdown override: if you've given back more than this fraction
         // of peak MFE, the veto is overridden regardless of conviction.
         // Safety valve against the veto holding through a real reversal.
-        private const double MAX_VETO_DRAWDOWN_PCT = 0.50;      // validate: distribution analysis
+        private const double MAX_VETO_DRAWDOWN_PCT = StrategyConfig.Policy.MAX_VETO_DRAWDOWN_PCT;      // validate: distribution analysis
 
         // Delta tail override: DeltaSl/DeltaSh magnitude that overrides the veto.
         // Strong DeltaSl (buying at bar low) on a short's bounce bar = buyers
         // defending the bounce. That's not noise — cancel the veto.
-        private const double DSL_DSH_OVERRIDE = 50.0;           // validate: raw delta magnitude
+        private const double DSL_DSH_OVERRIDE = StrategyConfig.Policy.DSL_DSH_OVERRIDE;           // validate: raw delta magnitude
 
         // ── CVD slope BE trigger (Trigger D) ──────────────────────────────
         // When CVD slope (from SnapKeys.CvdSlope) exceeds this magnitude
         // AGAINST the position direction, arm breakeven early.
         // Fills the gap where Regime_Flip produced 0 events in 217 trades.
-        private const double CVD_SLOPE_BE_THRESHOLD = 100.0;    // validate: distribution analysis
+        private const double CVD_SLOPE_BE_THRESHOLD = StrategyConfig.Policy.CVD_SLOPE_BE_THRESHOLD;    // validate: distribution analysis
 
         // ── Conviction exit (Stage 6.75) ──────────────────────────────────
         // Exit at market when strong counter-delta appears while in profit
         // AND price is near a structural level working against the trade.
         // Addresses the 88% stop-exit rate — adds intelligence between
         // "trail tightens" and "hold for T1 which rarely hits."
-        private const double EXIT_CONVICTION = 0.20;            // validate: distribution analysis
-        private const double MIN_PROFIT_EXIT_TICKS = 8.0;       // minimum profit to activate
-        private const double EXIT_LEVEL_PROXIMITY_ATR = 0.40;   // structural level proximity
+        private const double EXIT_CONVICTION = StrategyConfig.Policy.EXIT_CONVICTION;            // validate: distribution analysis
+        private const double MIN_PROFIT_EXIT_TICKS = StrategyConfig.Policy.MIN_PROFIT_EXIT_TICKS;       // minimum profit to activate
+        private const double EXIT_LEVEL_PROXIMITY_ATR = StrategyConfig.Policy.EXIT_LEVEL_PROXIMITY_ATR;   // structural level proximity
 
         // ===================================================================
         // CONSTRUCTION
@@ -315,7 +315,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // FIX: "Vampire" Give-back Fix
             // Force a static 15-tick T1 target to bank profits early.
-            double t1Ticks = 15.0;
+            double t1Ticks = StrategyConfig.Policy.T1_FIXED_TICKS;
             _activeSignal.Target1Price = _activeSignal.Direction == SignalDirection.Long
                 ? _activeSignal.EntryPrice + (t1Ticks * _host.TickSize)
                 : _activeSignal.EntryPrice - (t1Ticks * _host.TickSize);
@@ -323,7 +323,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             // FIX: Survival Stop Floor (Institutional Swing buffer)
             // Force a minimum stop of 1.5x ATR to survive noise wicks.
             double atrTicks = _host.ATR(14)[0] / _host.TickSize;
-            double minStopTicks = atrTicks * 1.5;
+            double minStopTicks = atrTicks * StrategyConfig.Policy.MIN_STOP_ATR_MULT_INST;
             double currentStopTicks = Math.Abs(_activeSignal.EntryPrice - _activeSignal.StopPrice) / _host.TickSize;
             
             if (currentStopTicks < minStopTicks)
@@ -1043,13 +1043,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         private static double GetBeArmTicks(SignalObject s, double atrTicks)
         {
             double fraction;
-            if      (IsRetest(s))      fraction = 0.15;
-            else if (IsBOS(s))         fraction = 0.20;
-            else if (IsBandReclaim(s)) fraction = 0.20;
+            if      (IsRetest(s))      fraction = StrategyConfig.Policy.BE_ARM_RETEST;
+            else if (IsBOS(s))         fraction = StrategyConfig.Policy.BE_ARM_BOS;
+            else if (IsBandReclaim(s)) fraction = StrategyConfig.Policy.BE_ARM_BOS;
             else if (IsImpulse(s))     fraction = 0.30;
-            else                       fraction = 0.20;
+            else                       fraction = StrategyConfig.Policy.BE_ARM_BOS;
 
-            return Math.Max(atrTicks * fraction, 4.0);
+            return Math.Max(atrTicks * fraction, StrategyConfig.Policy.BE_ARM_FLOOR_TICKS);
         }
 
         /// <summary>
@@ -1069,11 +1069,11 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (atrTicks <= 0) return double.MaxValue;
 
             double fraction;
-            if      (IsRetest(s))      fraction = 0.40;
-            else if (IsBOS(s))         fraction = 0.50;
-            else if (IsBandReclaim(s)) fraction = 0.55;
-            else if (IsImpulse(s))     fraction = 0.70;
-            else                       fraction = 0.50;
+            if      (IsRetest(s))      fraction = StrategyConfig.Policy.MFE_LOCK_START_RETEST;
+            else if (IsBOS(s))         fraction = StrategyConfig.Policy.MFE_LOCK_START_BOS;
+            else if (IsBandReclaim(s)) fraction = StrategyConfig.Policy.MFE_LOCK_START_BAND_RECLAIM;
+            else if (IsImpulse(s))     fraction = StrategyConfig.Policy.MFE_LOCK_START_IMPULSE;
+            else                       fraction = StrategyConfig.Policy.MFE_LOCK_START_BOS;
 
             return atrTicks * fraction;
         }
@@ -1092,11 +1092,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// </summary>
         private static double GetMfeLockPct(SignalObject s)
         {
-            if (IsRetest(s))      return 0.45;
-            if (IsBOS(s))         return 0.35;
-            if (IsBandReclaim(s)) return 0.35;
-            if (IsImpulse(s))     return 0.25;
-            return 0.30;
+            if (IsRetest(s))      return StrategyConfig.Policy.MFE_LOCK_PCT_RETEST;
+            if (IsBOS(s))         return StrategyConfig.Policy.MFE_LOCK_PCT_BOS;
+            if (IsBandReclaim(s)) return StrategyConfig.Policy.MFE_LOCK_PCT_BOS;
+            if (IsImpulse(s))     return StrategyConfig.Policy.MFE_LOCK_PCT_IMPULSE;
+            return StrategyConfig.Policy.MFE_LOCK_PCT_DEFAULT;
         }
 
         /// <summary>
@@ -1119,11 +1119,11 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (remaining <= 1) return remaining;  // caller's skip-partial guard handles this
 
             double pct;
-            if      (IsBOS(s))         pct = 0.70;
-            else if (IsRetest(s))      pct = 0.70;
-            else if (IsBandReclaim(s)) pct = 0.60;
-            else if (IsImpulse(s))     pct = 0.50;
-            else                       pct = 0.50;
+            if      (IsBOS(s))         pct = StrategyConfig.Policy.T1_PARTIAL_BOS;
+            else if (IsRetest(s))      pct = StrategyConfig.Policy.T1_PARTIAL_BOS;
+            else if (IsBandReclaim(s)) pct = StrategyConfig.Policy.T1_PARTIAL_BAND_RECLAIM;
+            else if (IsImpulse(s))     pct = StrategyConfig.Policy.T1_PARTIAL_IMPULSE;
+            else                       pct = StrategyConfig.Policy.T1_PARTIAL_IMPULSE;
 
             int qty = (int)Math.Round(remaining * pct, MidpointRounding.AwayFromZero);
 

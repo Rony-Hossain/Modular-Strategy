@@ -87,11 +87,11 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         private double _tickValue;
 
         // ── Detection constants ───────────────────────────────────────────
-        private const int    LOOKBACK         = 10;   // bars back to define a "new extreme"
-        private const double WICK_BODY_RATIO  = 1.5;  // wick must be 1.5× the body size
-        private const int    MAX_AGE_BARS     = 100;  // marked level expires after N bars
-        private const int    REENTRY_BARS     = 5;
-        private const double RETURN_TOLERANCE = 0.3;  // fraction of ATR = "at the level"
+        private const int    LOOKBACK         = StrategyConfig.Modules.FA_LOOKBACK;   // bars back to define a "new extreme"
+        private const double WICK_BODY_RATIO  = StrategyConfig.Modules.FA_WICK_BODY_RATIO;  // wick must be 1.5× the body size
+        private const int    MAX_AGE_BARS     = StrategyConfig.Modules.FA_MAX_AGE_BARS;  // marked level expires after N bars
+        private const int    REENTRY_BARS     = StrategyConfig.Modules.FA_COOLDOWN_BARS;
+        private const double RETURN_TOLERANCE = StrategyConfig.Modules.FA_RETURN_TOLERANCE;  // fraction of ATR = "at the level"
 
         // ── Marked failed auction levels ──────────────────────────────────
         // One failed high and one failed low tracked at a time.
@@ -250,10 +250,10 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (p.Close > (p.High + p.Low) / 2.0) return RawDecision.None;
 
             // Score
-            int score = 62;
+            int score = StrategyConfig.Modules.FA_BASE_SCORE;
             double barDelta = snap.Get(SnapKeys.BarDelta);
-            if (barDelta < 0)                       score += 5;   // return bar net selling
-            if (snap.Get(SnapKeys.VolDeltaSh) < 0)  score += 5;   // absorption confirmed at high
+            if (barDelta < 0)                       score += StrategyConfig.Modules.FA_BONUS_DELTA;
+            if (snap.Get(SnapKeys.VolDeltaSh) < 0)  score += StrategyConfig.Modules.FA_BONUS_ABSORPTION;
             score  = Math.Min(score, 80);
 
             double t1 = snap.VWAP > 0 && snap.VWAP < p.Close
@@ -289,10 +289,10 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             // Bullish confirmation — auction failing again on the return
             if (p.Close < (p.High + p.Low) / 2.0) return RawDecision.None;
 
-            int score = 62;
+            int score = StrategyConfig.Modules.FA_BASE_SCORE;
             double barDelta = snap.Get(SnapKeys.BarDelta);
-            if (barDelta > 0)                       score += 5;   // return bar net buying
-            if (snap.Get(SnapKeys.VolDeltaSl) > 0)  score += 5;   // absorption confirmed at low
+            if (barDelta > 0)                       score += StrategyConfig.Modules.FA_BONUS_DELTA;
+            if (snap.Get(SnapKeys.VolDeltaSl) > 0)  score += StrategyConfig.Modules.FA_BONUS_ABSORPTION;
             score  = Math.Min(score, 80);
 
             double t1 = snap.VWAP > 0 && snap.VWAP > p.Close

@@ -33,8 +33,8 @@ namespace NinjaTrader.NinjaScript.Strategies
     /// </summary>
     public sealed class TapeRecorder
     {
-        private const int  DEFAULT_CAPACITY  = 45000;
-        private const long DEFAULT_WINDOW_MS = 30_000;
+        private const int  DEFAULT_CAPACITY  = StrategyConfig.Modules.TR_DEFAULT_CAPACITY;
+        private const long DEFAULT_WINDOW_MS = StrategyConfig.Modules.TR_DEFAULT_WINDOW_MS;
 
         private readonly Tick[] _ring;
         private readonly int    _capacity;
@@ -70,7 +70,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// </summary>
         public Action<DateTime, Tick> OnTickClassified;
 
-        public TapeRecorder(int capacity = DEFAULT_CAPACITY, long windowMs = DEFAULT_WINDOW_MS, double tickSize = 0.25)
+        public TapeRecorder(int capacity = StrategyConfig.Modules.TR_DEFAULT_CAPACITY, long windowMs = StrategyConfig.Modules.TR_DEFAULT_WINDOW_MS, double tickSize = 0.25)
         {
             if (capacity <= 0)   throw new ArgumentOutOfRangeException("capacity");
             if (windowMs  <= 0)  throw new ArgumentOutOfRangeException("windowMs");

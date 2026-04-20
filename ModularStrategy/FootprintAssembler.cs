@@ -161,7 +161,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         // DEFAULT: 0.80 — a 5-minute primary may be missing at most 1 feeder minute.
         //   A 3-bar floor for 5-bar primaries is the common quiet-minute case.
         //   Tune downward only with explicit justification from coverage statistics.
-        private const double MIN_FEEDER_COVERAGE_FRACTION = 0.80;
+        private const double MIN_FEEDER_COVERAGE_FRACTION = StrategyConfig.Modules.FA_MIN_FEEDER_COVERAGE;
 
         // ── Diagnostics ─────────────────────────────────────────────────
         public FootprintAssemblyFailureReason LastFailureReason  { get; private set; }

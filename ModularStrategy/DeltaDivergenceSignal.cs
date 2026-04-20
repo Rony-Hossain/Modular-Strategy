@@ -11,11 +11,11 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
     {
         public string SetId => "DeltaDivergence_v1";
 
-        private const double MIN_ABSORPTION_SCORE = 5.0;
-        private const double ATR_STOP_BUFFER = 0.08;
-        private const double MIN_STOP_ATR_MULT = 0.20;
-        private const int STOP_LOOKBACK_BARS = 3;
-        private const int REENTRY_COOLDOWN = 8;
+        private const double MIN_ABSORPTION_SCORE = StrategyConfig.Modules.DD_MIN_ABSORPTION_SCORE;
+        private const double ATR_STOP_BUFFER = StrategyConfig.Modules.DD_ATR_STOP_BUFFER;
+        private const double MIN_STOP_ATR_MULT = StrategyConfig.Modules.DD_MIN_STOP_ATR_MULT;
+        private const int STOP_LOOKBACK_BARS = StrategyConfig.Modules.DD_STOP_LOOKBACK_BARS;
+        private const int REENTRY_COOLDOWN = StrategyConfig.Modules.DD_COOLDOWN_BARS;
 
         private double _tickSize;
         private double _tickValue;
@@ -102,7 +102,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             {
                 double recentLow = p.Low;
                 if (p.Lows != null)
-                    for (int i = 1; i < STOP_LOOKBACK_BARS && i < p.Lows.Length; i++)
+                    for (int i = 1; i < StrategyConfig.Modules.DD_STOP_LOOKBACK_BARS && i < p.Lows.Length; i++)
                         if (p.Lows[i] < recentLow) recentLow = p.Lows[i];
 
                 stopPrice = recentLow - ATR_STOP_BUFFER * atr;
@@ -114,7 +114,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             {
                 double recentHigh = p.High;
                 if (p.Highs != null)
-                    for (int i = 1; i < STOP_LOOKBACK_BARS && i < p.Highs.Length; i++)
+                    for (int i = 1; i < StrategyConfig.Modules.DD_STOP_LOOKBACK_BARS && i < p.Highs.Length; i++)
                         if (p.Highs[i] > recentHigh) recentHigh = p.Highs[i];
 
                 stopPrice = recentHigh + ATR_STOP_BUFFER * atr;
@@ -163,7 +163,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (riskTicks > 0 && rewardTicks / riskTicks < 1.2)
             { _lastBailReason = $"rr_insufficient ({rewardTicks:F1}/{riskTicks:F1}={rewardTicks/riskTicks:F2})"; return RawDecision.None; }
 
-            int score = 78;
+            int score = StrategyConfig.Modules.DD_BASE_SCORE;
 
             if (isLong  && snapshot.GetFlag(SnapKeys.ImbalZoneAtBull)) score += 6;
             if (!isLong && snapshot.GetFlag(SnapKeys.ImbalZoneAtBear))  score += 6;

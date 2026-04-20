@@ -17,11 +17,11 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
     /// </summary>
     public sealed class StructuralLabeler
     {
-        private const int FRACTAL_N = 2; // N=2 requires 2 bars left, 2 bars right
-        private const int MAX_SWINGS = 8;
+        private const int FRACTAL_N = StrategyConfig.Modules.SL_FRACTAL_N; // N=2 requires 2 bars left, 2 bars right
+        private const int MAX_SWINGS = StrategyConfig.Modules.SL_MAX_SWINGS;
 
-        private readonly List<SwingPoint> _highs = new List<SwingPoint>(MAX_SWINGS);
-        private readonly List<SwingPoint> _lows  = new List<SwingPoint>(MAX_SWINGS);
+        private readonly List<SwingPoint> _highs = new List<SwingPoint>(StrategyConfig.Modules.SL_MAX_SWINGS);
+        private readonly List<SwingPoint> _lows  = new List<SwingPoint>(StrategyConfig.Modules.SL_MAX_SWINGS);
 
         private int _totalConfirmedSwings = 0;
         private SwingLabel _lastHighLabel = SwingLabel.None;

@@ -43,16 +43,16 @@ namespace NinjaTrader.NinjaScript.Strategies
     public class ImbalanceZoneRegistry
     {
         // ── Configuration ─────────────────────────────────────────────────
-        private const int    MAX_BULL_ZONES      = 50;
-        private const int    MAX_BEAR_ZONES      = 50;
-        private const int    MAX_ZONE_AGE_BARS   = 100;  // ~500 min at 5-min bars
-        private const double IMBAL_RATIO         = 3.0;  // 3:1 minimum bid/ask dominance
-        private const int    MIN_STACKED_LEVELS  = 3;    // minimum consecutive levels
-        private const double PROXIMITY_TICKS     = 4.0;  // within 4 ticks = "at zone"
+        private const int    MAX_BULL_ZONES      = StrategyConfig.Modules.IZ_MAX_BULL_ZONES;
+        private const int    MAX_BEAR_ZONES      = StrategyConfig.Modules.IZ_MAX_BEAR_ZONES;
+        private const int    MAX_ZONE_AGE_BARS   = StrategyConfig.Modules.IZ_MAX_ZONE_AGE_BARS;  // ~500 min at 5-min bars
+        private const double IMBAL_RATIO         = StrategyConfig.Modules.IZ_IMBAL_RATIO;  // 3:1 minimum bid/ask dominance
+        private const int    MIN_STACKED_LEVELS  = StrategyConfig.Modules.IZ_MIN_STACKED_LEVELS;    // minimum consecutive levels
+        private const double PROXIMITY_TICKS     = StrategyConfig.Modules.IZ_PROXIMITY_TICKS;  // within 4 ticks = "at zone"
 
         // ── Zone storage — fixed arrays, no allocation ─────────────────────
-        private readonly ImbalZone[] _bullZones = new ImbalZone[MAX_BULL_ZONES];
-        private readonly ImbalZone[] _bearZones = new ImbalZone[MAX_BEAR_ZONES];
+        private readonly ImbalZone[] _bullZones = new ImbalZone[StrategyConfig.Modules.IZ_MAX_BULL_ZONES];
+        private readonly ImbalZone[] _bearZones = new ImbalZone[StrategyConfig.Modules.IZ_MAX_BEAR_ZONES];
         private int _bullWriteIdx = 0;  // circular write pointer
         private int _bearWriteIdx = 0;
 

@@ -4,11 +4,11 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
     public sealed class BigPrintDetector
     {
-        private const int    VOL_RING_SIZE       = 2000;  // ticks for p95 calculation
-        private const int    RECOMPUTE_INTERVAL  = 200;   // ticks between p95 recalc
-        private const double PERCENTILE          = 0.95;
-        private const int    BP_RING_SIZE        = 500;   // max BigPrints in rolling window
-        private const long   WINDOW_MS           = 30_000; // 30s rolling window for BigPrints
+        private const int    VOL_RING_SIZE       = StrategyConfig.Modules.BP_VOL_RING_SIZE;  // ticks for p95 calculation
+        private const int    RECOMPUTE_INTERVAL  = StrategyConfig.Modules.BP_RECOMPUTE_INTERVAL;   // ticks between p95 recalc
+        private const double PERCENTILE          = StrategyConfig.Modules.BP_PERCENTILE;
+        private const int    BP_RING_SIZE        = StrategyConfig.Modules.BP_RING_SIZE;   // max BigPrints in rolling window
+        private const long   WINDOW_MS           = StrategyConfig.Modules.BP_WINDOW_MS; // 30s rolling window for BigPrints
 
         // Volume distribution tracking
         private readonly long[] _volRing;       // ring of recent trade volumes

@@ -51,7 +51,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         // ====================================================================
         // CONSTRUCTION
         // ====================================================================
-        public VolumeProfileProcessor(double tickSize, double valueAreaCoverage = 0.70, int initialCapacity = 512)
+        public VolumeProfileProcessor(double tickSize, double valueAreaCoverage = StrategyConfig.Modules.VP_VALUE_AREA_COVERAGE, int initialCapacity = StrategyConfig.Modules.VP_INITIAL_CAPACITY)
         {
             _tickSize = tickSize;
             _valueAreaCoverage = valueAreaCoverage;

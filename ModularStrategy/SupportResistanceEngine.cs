@@ -181,7 +181,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Fact buffer: max facts across all v1 sources:
             // 18 (swings) + 5 (pivots) + 8 (session) + 3 (profile) + 11 (rounds) = 45
             // 64 slots provides comfortable headroom
-            _factBuf            = new SRLevelFact[64];
+            _factBuf            = new SRLevelFact[StrategyConfig.Modules.SRE_FACT_BUFFER_CAPACITY];
             _scratchSupPriceSum = new double[config.MaxActiveZonesPerSide];
             _scratchResPriceSum = new double[config.MaxActiveZonesPerSide];
             _scratchSupPriorSrc = new SRSourceType[config.MaxActiveZonesPerSide];
@@ -949,7 +949,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         // Capacity 512: typical RTH session has ~78 bars × average range of a few ticks.
         // 512 slots cover any realistic session without rehashing.
         private readonly Dictionary<double, double> _profile
-            = new Dictionary<double, double>(512);
+            = new Dictionary<double, double>(StrategyConfig.Modules.SRE_PROFILE_DICT_CAPACITY);
 
         private int _profileBars = 0;
 
@@ -1194,7 +1194,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private readonly SupportResistanceCoreConfig _config;
         private readonly StrategyLogger              _log;
 
-        private const int STRENGTH = 2;
+        private const int STRENGTH = StrategyConfig.Modules.SRE_SWING_STRENGTH;
         private const int MIN_LEN  = 2 * STRENGTH + 1;   // 5 — matches HTFLevelEngine MIN_ARRAY_LEN
 
         // ── Per-TF swing arrays — most recent at index 0 ──────────────────
@@ -1834,7 +1834,7 @@ namespace NinjaTrader.NinjaScript.Strategies
     {
         private readonly SupportResistanceCoreConfig _config;
 
-        private const int HALF_RANGE = 5;   // levels on each side of price
+        private const int HALF_RANGE = StrategyConfig.Modules.SRE_ROUND_HALF_RANGE;   // levels on each side of price
 
         public RoundNumberLevelSource(SupportResistanceCoreConfig config, StrategyLogger log)
         {

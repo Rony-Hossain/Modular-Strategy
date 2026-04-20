@@ -27,7 +27,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
         // Re-entry suppression
         private int _lastFillBar = -1;
-        private const int REENTRY_COOLDOWN = 10;
+        private const int REENTRY_COOLDOWN = StrategyConfig.Modules.VW_REENTRY_COOLDOWN;
 
         public void Initialise(double tickSize, double tickValue)
         {
@@ -78,11 +78,11 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                     Direction    = SignalDirection.Long,
                     Source       = SignalSource.VWAP_Reclaim,
                     EntryPrice   = p.Close,
-                    StopPrice    = p.Low - (2 * _tickSize),
-                    TargetPrice  = p.Close + (atr * 1.5),
-                    Target2Price = p.Close + (atr * 3.0),
+                    StopPrice    = p.Low - (StrategyConfig.Modules.VW_STOP_BUFFER_TICKS * _tickSize),
+                    TargetPrice  = p.Close + (atr * StrategyConfig.Modules.VW_T1_ATR_DIST),
+                    Target2Price = p.Close + (atr * StrategyConfig.Modules.VW_T2_ATR_DIST),
                     Label        = $"VWAP bull reclaim [{SetId}]",
-                    RawScore     = 65,
+                    RawScore     = StrategyConfig.Modules.VW_BASE_SCORE,
                     IsValid      = true,
                     SignalId     = $"{SetId}:Bull:{p.CurrentBar}"
                 };
@@ -99,11 +99,11 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                     Direction    = SignalDirection.Short,
                     Source       = SignalSource.VWAP_Reclaim,
                     EntryPrice   = p.Close,
-                    StopPrice    = p.High + (2 * _tickSize),
-                    TargetPrice  = p.Close - (atr * 1.5),
-                    Target2Price = p.Close - (atr * 3.0),
+                    StopPrice    = p.High + (StrategyConfig.Modules.VW_STOP_BUFFER_TICKS * _tickSize),
+                    TargetPrice  = p.Close - (atr * StrategyConfig.Modules.VW_T1_ATR_DIST),
+                    Target2Price = p.Close - (atr * StrategyConfig.Modules.VW_T2_ATR_DIST),
                     Label        = $"VWAP bear reclaim [{SetId}]",
-                    RawScore     = 65,
+                    RawScore     = StrategyConfig.Modules.VW_BASE_SCORE,
                     IsValid      = true,
                     SignalId     = $"{SetId}:Bear:{p.CurrentBar}"
                 };

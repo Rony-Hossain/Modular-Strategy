@@ -326,25 +326,25 @@ namespace NinjaTrader.NinjaScript.Strategies
             get
             {
                 return new FootprintEntryAdvisorConfig(
-                    unavailablePolicy: FootprintUnavailablePolicy.NeutralNoVetoNoBonus,
-                    minConvictionDeltaPct: 0.18, // Lowered from 0.30 to 0.18 for balanced aggression
-                    volumeDominanceRatio: 1.30,
-                    hardVetoDeltaPct: 0.15,
-                    hardVetoVolumeDominanceRatio: 1.50,
-                    hardVetoExtremeDeltaThreshold: 25.0,
-                    hardVetoCumDeltaSlopeThreshold: 50.0,
-                    absorptionStrongThreshold: 50.0,
-                    absorptionModerateThreshold: 30.0,
-                    minStackedLevelsForSupport: 3,
-                    denyBelowScore: 35,
-                    strongApproveAtOrAboveScore: 65,
-                    weakApproveMultiplier: 0.90,
-                    strongApproveMultiplier: 1.10,
-                    weakDenyMultiplier: 0.75,
-                    smfNativeScoreBias: -5,
-                    smcBosScoreBias: 5,
-                    smfNativeMultiplierBias: 0.00,
-                    smcBosMultiplierBias: 0.00);
+                    unavailablePolicy:               FootprintUnavailablePolicy.NeutralNoVetoNoBonus,
+                    minConvictionDeltaPct:           StrategyConfig.Modules.EA_MIN_CONVICTION_DELTA_PCT,
+                    volumeDominanceRatio:            StrategyConfig.Modules.EA_VOLUME_DOMINANCE_RATIO,
+                    hardVetoDeltaPct:                StrategyConfig.Modules.EA_HARD_VETO_DELTA_PCT,
+                    hardVetoVolumeDominanceRatio:    StrategyConfig.Modules.EA_HARD_VETO_VOL_DOM_RATIO,
+                    hardVetoExtremeDeltaThreshold:   StrategyConfig.Modules.EA_HARD_VETO_EXTREME_DELTA,
+                    hardVetoCumDeltaSlopeThreshold:  StrategyConfig.Modules.EA_HARD_VETO_CUM_DELTA_SLOPE,
+                    absorptionStrongThreshold:       StrategyConfig.Modules.EA_ABSORPTION_STRONG_THRESHOLD,
+                    absorptionModerateThreshold:     StrategyConfig.Modules.EA_ABSORPTION_MODERATE_THRESHOLD,
+                    minStackedLevelsForSupport:      StrategyConfig.Modules.EA_MIN_STACKED_LEVELS_SUPPORT,
+                    denyBelowScore:                  StrategyConfig.Modules.EA_DENY_BELOW_SCORE,
+                    strongApproveAtOrAboveScore:     StrategyConfig.Modules.EA_STRONG_APPROVE_SCORE,
+                    weakApproveMultiplier:           StrategyConfig.Modules.EA_WEAK_APPROVE_MULTIPLIER,
+                    strongApproveMultiplier:         StrategyConfig.Modules.EA_STRONG_APPROVE_MULTIPLIER,
+                    weakDenyMultiplier:              StrategyConfig.Modules.EA_WEAK_DENY_MULTIPLIER,
+                    smfNativeScoreBias:              StrategyConfig.Modules.EA_SMF_NATIVE_SCORE_BIAS,
+                    smcBosScoreBias:                 StrategyConfig.Modules.EA_SMC_BOS_SCORE_BIAS,
+                    smfNativeMultiplierBias:         StrategyConfig.Modules.EA_SMF_NATIVE_MULT_BIAS,
+                    smcBosMultiplierBias:            StrategyConfig.Modules.EA_SMC_BOS_MULT_BIAS);
             }
         }
     }

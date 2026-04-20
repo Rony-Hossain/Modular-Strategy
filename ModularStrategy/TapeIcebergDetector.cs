@@ -9,9 +9,9 @@ namespace NinjaTrader.NinjaScript.Strategies
     /// </summary>
     public sealed class TapeIcebergDetector
     {
-        private const long WINDOW_MS       = 5_000;   // 5-second refresh window
-        private const int  ICEBERG_MIN_HITS = 8;      // same-side prints to fire
-        private const int  SLOT_CAPACITY   = 16;      // concurrent levels under observation
+        private const long WINDOW_MS       = StrategyConfig.Modules.TI_WINDOW_MS;   // 5-second refresh window
+        private const int  ICEBERG_MIN_HITS = StrategyConfig.Modules.TI_ICEBERG_MIN_HITS;      // same-side prints to fire
+        private const int  SLOT_CAPACITY   = StrategyConfig.Modules.TI_SLOT_CAPACITY;      // concurrent levels under observation
 
         private readonly double _tickSize;
         private readonly LevelSlot[] _slots;
@@ -31,7 +31,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public TapeIcebergDetector(double tickSize)
         {
             _tickSize = tickSize > 0 ? tickSize : 0.25;
-            _slots    = new LevelSlot[SLOT_CAPACITY];
+            _slots    = new LevelSlot[StrategyConfig.Modules.TI_SLOT_CAPACITY];
             LastIcebergAgeMs = long.MaxValue;
         }
 

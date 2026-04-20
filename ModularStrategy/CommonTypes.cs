@@ -1,6 +1,7 @@
 #region Using declarations
 using System;
 using System.Collections.Generic;
+using NinjaTrader.NinjaScript.Strategies;
 #endregion
 
 // ===================================================================
@@ -218,10 +219,10 @@ namespace MathLogic
             InstrumentSpec
         >
         {
-            { InstrumentKind.MNQ, new InstrumentSpec("MNQ", 0.25, 0.50, 2.0, 100.0) },
-            { InstrumentKind.NQ, new InstrumentSpec("NQ", 0.25, 5.00, 20.0, 100.0) },
-            { InstrumentKind.ES, new InstrumentSpec("ES", 0.25, 12.50, 50.0, 25.0) },
-            { InstrumentKind.MES, new InstrumentSpec("MES", 0.25, 1.25, 5.0, 25.0) },
+            { InstrumentKind.MNQ, new InstrumentSpec(StrategyConfig.Instruments.MNQ.Name, StrategyConfig.Instruments.MNQ.TickSize, StrategyConfig.Instruments.MNQ.TickValue, StrategyConfig.Instruments.MNQ.PointValue, StrategyConfig.Instruments.MNQ.RoundInterval) },
+            { InstrumentKind.NQ, new InstrumentSpec(StrategyConfig.Instruments.NQ.Name, StrategyConfig.Instruments.NQ.TickSize, StrategyConfig.Instruments.NQ.TickValue, StrategyConfig.Instruments.NQ.PointValue, StrategyConfig.Instruments.NQ.RoundInterval) },
+            { InstrumentKind.ES, new InstrumentSpec(StrategyConfig.Instruments.ES.Name, StrategyConfig.Instruments.ES.TickSize, StrategyConfig.Instruments.ES.TickValue, StrategyConfig.Instruments.ES.PointValue, StrategyConfig.Instruments.ES.RoundInterval) },
+            { InstrumentKind.MES, new InstrumentSpec(StrategyConfig.Instruments.MES.Name, StrategyConfig.Instruments.MES.TickSize, StrategyConfig.Instruments.MES.TickValue, StrategyConfig.Instruments.MES.PointValue, StrategyConfig.Instruments.MES.RoundInterval) },
         };
 
         public static InstrumentSpec Get(InstrumentKind kind)
@@ -284,13 +285,13 @@ namespace MathLogic
     public static class FeedConstants
     {
         /// <summary>Bars of history maintained per timeframe in rolling arrays.</summary>
-        public const int SNAPSHOT_DEPTH = 100;
+        public const int SNAPSHOT_DEPTH = StrategyConfig.Modules.SNAPSHOT_DEPTH;
 
         /// <summary>Minutes of the opening range window (locks ORB high/low).</summary>
-        public const int ORB_MINUTES = 30;
+        public const int ORB_MINUTES = StrategyConfig.Modules.ORB_MINUTES;
 
         /// <summary>Minimum bars required before strategy logic starts (all TFs warm).</summary>
-        public const int BARS_REQUIRED_TO_TRADE = 50;
+        public const int BARS_REQUIRED_TO_TRADE = StrategyConfig.Modules.BARS_REQUIRED_TO_TRADE;
     }
 
     /// <summary>
@@ -299,22 +300,22 @@ namespace MathLogic
     public static class SMCConstants
     {
         /// <summary>Bars on each side required to confirm a swing high or low.</summary>
-        public const int SWING_STRENGTH = 3;
+        public const int SWING_STRENGTH = StrategyConfig.Modules.SMC_SWING_STRENGTH;
 
         /// <summary>Minimum ticks a close must exceed a swing level to count as BOS.</summary>
-        public const double MIN_BOS_TICKS = 2.0;
+        public const double MIN_BOS_TICKS = StrategyConfig.Modules.SMC_MIN_BOS_TICKS;
 
         /// <summary>
         /// Minimum CHoCH strength ratio (breakTicks / ATRTicks) to qualify.
         /// Below this the break is considered noise.
         /// </summary>
-        public const double MIN_CHOCH_STRENGTH = 0.30;
+        public const double MIN_CHOCH_STRENGTH = StrategyConfig.Modules.SMC_MIN_CHOCH_STRENGTH;
 
         /// <summary>Bars back from the BOS bar to search for the order block candle.</summary>
-        public const int OB_LOOKBACK = 5;
+        public const int OB_LOOKBACK = StrategyConfig.Modules.SMC_OB_LOOKBACK;
 
         /// <summary>Minimum ticks beyond OB edge to confirm invalidation.</summary>
-        public const double OB_INVALIDATION_BUFFER_TICKS = 2.0;
+        public const double OB_INVALIDATION_BUFFER_TICKS = StrategyConfig.Modules.SMC_OB_INV_BUFFER;
     }
 
     /// <summary>
@@ -326,13 +327,13 @@ namespace MathLogic
         /// Price must be beyond this many standard deviations from VWAP
         /// to qualify as an overextension worth fading.
         /// </summary>
-        public const double REVERSION_SD_THRESHOLD = 1.8;
+        public const double REVERSION_SD_THRESHOLD = StrategyConfig.Modules.VWAP_REVERSION_SD_THRESHOLD;
 
         /// <summary>
         /// Fraction of one SD used as confirmation buffer when price reclaims VWAP.
         /// 0.15 = price must be within 15% of the SD band to count as a reclaim.
         /// </summary>
-        public const double RECLAIM_BUFFER_PCT = 0.15;
+        public const double RECLAIM_BUFFER_PCT = StrategyConfig.Modules.VWAP_RECLAIM_BUFFER_PCT;
     }
 
     /// <summary>
@@ -341,13 +342,13 @@ namespace MathLogic
     public static class EMAConstants
     {
         /// <summary>Fast EMA period for crossover signals.</summary>
-        public const int FAST = 9;
+        public const int FAST = StrategyConfig.Modules.EMA_FAST_PERIOD;
 
         /// <summary>Slow EMA period for crossover signals.</summary>
-        public const int SLOW = 21;
+        public const int SLOW = StrategyConfig.Modules.EMA_SLOW_PERIOD;
 
         /// <summary>Long-term EMA for daily trend bias filter.</summary>
-        public const int TREND = 200;
+        public const int TREND = StrategyConfig.Modules.EMA_TREND_PERIOD;
     }
 
     /// <summary>
@@ -356,13 +357,13 @@ namespace MathLogic
     public static class ADXConstants
     {
         /// <summary>ADX must be at or above this value to confirm a trending market.</summary>
-        public const double MIN_TREND = 25.0;
+        public const double MIN_TREND = StrategyConfig.Modules.ADX_MIN_TREND;
 
         /// <summary>ATR period used for Wilder smoothing.</summary>
-        public const int ATR_PERIOD = 14;
+        public const int ATR_PERIOD = StrategyConfig.Modules.ADX_PERIOD;
 
         /// <summary>ADX smoothing period (same as ATR by convention).</summary>
-        public const int ADX_PERIOD = 14;
+        public const int ADX_PERIOD = StrategyConfig.Modules.ADX_PERIOD;
     }
 
     /// <summary>
@@ -374,12 +375,12 @@ namespace MathLogic
         /// Ticks above/below ORB boundary required to confirm a breakout close.
         /// Prevents false triggers on wicks that barely touch the boundary.
         /// </summary>
-        public const double BREAKOUT_BUFFER_TICKS = 1.5;
+        public const double BREAKOUT_BUFFER_TICKS = StrategyConfig.Modules.ORB_BREAKOUT_BUFFER;
 
         /// <summary>
         /// Fraction of ATR within which price is considered to be retesting the ORB level.
         /// </summary>
-        public const double RETEST_ATR_FRACTION = 0.30;
+        public const double RETEST_ATR_FRACTION = StrategyConfig.Modules.ORB_RETEST_ATR_FRAC;
     }
 
     // ===================================================================
@@ -1086,21 +1087,21 @@ namespace MathLogic
     public static class GradeThresholds
     {
         /// <summary>Score below this value → trade rejected, no order submitted.</summary>
-        public const int REJECT = 60;
+        public const int REJECT = StrategyConfig.Policy.SCORE_REJECT;
 
         /// <summary>Score 60–64 → C setup (take only in ideal conditions).</summary>
-        public const int C_SETUP = 65;
+        public const int C_SETUP = StrategyConfig.Policy.SCORE_GRADE_B;
 
         /// <summary>Score 65–74 → B setup (standard valid trade).</summary>
-        public const int B_SETUP = 75;
+        public const int B_SETUP = StrategyConfig.Policy.SCORE_GRADE_A;
 
         /// <summary>Score 75–84 → A setup (high-confidence trade).</summary>
-        public const int A_SETUP = 85;
+        public const int A_SETUP = StrategyConfig.Policy.SCORE_GRADE_A_PLUS;
 
         // Score 85+ → A+ setup (maximum position size, aggressive entry)
 
         /// <summary>Minimum score to enable aggressive entry (limit + 3 ticks rather than + 1).</summary>
-        public const int AGGRESSIVE_ENTRY = 80;
+        public const int AGGRESSIVE_ENTRY = StrategyConfig.Policy.SCORE_AGGRESSIVE_ENTRY;
     }
 
     /// <summary>
@@ -1254,16 +1255,16 @@ namespace MathLogic
     public static class RiskDefaults
     {
         /// <summary>Default risk per trade as fraction of account (1%).</summary>
-        public const double RISK_PCT = 0.01;
+        public const double RISK_PCT = StrategyConfig.Policy.RISK_PCT_DEFAULT;
 
         /// <summary>Default maximum contracts regardless of position sizing formula.</summary>
-        public const int MAX_CONTRACTS = 5;
+        public const int MAX_CONTRACTS = StrategyConfig.Policy.MAX_CONTRACTS;
 
         /// <summary>Default maximum daily loss in dollars before circuit breaker fires.</summary>
-        public const double MAX_DAILY_LOSS = 500.0;
+        public const double MAX_DAILY_LOSS = StrategyConfig.Policy.MAX_DAILY_LOSS;
 
         /// <summary>Minimum risk:reward ratio — signals below this RR are rejected.</summary>
-        public const double MIN_RR_RATIO = 1.5;
+        public const double MIN_RR_RATIO = StrategyConfig.Policy.MIN_RR_RATIO;
 
         /// <summary>Consecutive losses before directional halt fires.
         /// FIX: Was 3. At 56% win rate with 15 trades/day, 3-in-a-row has
@@ -1273,15 +1274,15 @@ namespace MathLogic
         /// Raised to 5: probability per streak drops to 1.6%, preserves
         /// protection against genuine adverse runs while eliminating
         /// false kills on normal variance days.</summary>
-        public const int MAX_CONSECUTIVE_LOSSES = 5;
+        public const int MAX_CONSECUTIVE_LOSSES = StrategyConfig.Policy.MAX_CONSECUTIVE_LOSS;
 
         /// <summary>Stop too tight — minimum ticks for a valid stop distance.</summary>
-        public const double MIN_STOP_TICKS = 4.0;
+        public const double MIN_STOP_TICKS = StrategyConfig.Policy.MIN_STOP_TICKS;
 
         /// <summary>Bars to wait for limit fill before converting to market order.</summary>
-        public const int LIMIT_FALLBACK_BARS = 3;
+        public const int LIMIT_FALLBACK_BARS = StrategyConfig.Policy.LIMIT_FALLBACK_BARS;
 
         /// <summary>Fraction of position to exit at Target 1 (50% partial).</summary>
-        public const double T1_PARTIAL_PCT = 0.5;
+        public const double T1_PARTIAL_PCT = StrategyConfig.Policy.T1_PARTIAL_PCT;
     }
 }

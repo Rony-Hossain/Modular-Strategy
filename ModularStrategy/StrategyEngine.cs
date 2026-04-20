@@ -47,10 +47,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         // Re-entry suppression — per-direction
         private int _lastFillBarLong  = -1;
         private int _lastFillBarShort = -1;
-        private const int REENTRY_SUPPRESSION_BARS = 5;
+        private const int REENTRY_SUPPRESSION_BARS = StrategyConfig.Modules.SE_REENTRY_SUPPRESSION_BARS;
 
-        private const int MAX_SETS = 32;
-        private readonly RawDecision[] _candidates = new RawDecision[MAX_SETS];
+        private const int MAX_SETS = StrategyConfig.Modules.SE_MAX_SETS;
+        private readonly RawDecision[] _candidates = new RawDecision[StrategyConfig.Modules.SE_MAX_SETS];
 
         // Candidate count written by Evaluate() — exposed to SignalRankingEngine
         // via CandidateCount property so the ranking engine can iterate the buffer

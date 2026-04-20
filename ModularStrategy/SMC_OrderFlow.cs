@@ -28,8 +28,8 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         private SignalDirection _lastFillDir = SignalDirection.None;
         private FairValueGap _bullFVG1 = FairValueGap.Empty, _bullFVG2 = FairValueGap.Empty;
         private FairValueGap _bearFVG1 = FairValueGap.Empty, _bearFVG2 = FairValueGap.Empty;
-        private const double MIN_GAP_ATR = 0.15;
-        private const int MAX_AGE_BARS = 200;
+        private const double MIN_GAP_ATR = StrategyConfig.Modules.FVG_MIN_GAP_ATR;
+        private const int MAX_AGE_BARS = StrategyConfig.Modules.SMC_FVG_MAX_AGE_BARS;
 
         public void Initialise(double tickSize, double tickValue) { _tickSize = tickSize; _tickValue = tickValue; }
         public void OnSessionOpen(MarketSnapshot snapshot) { }
@@ -44,7 +44,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             var p = snapshot.Primary;
             double atr = snapshot.ATR > 0 ? snapshot.ATR : _tickSize * 10;
             if (p.Highs == null || p.Highs.Length < 3 || p.Lows == null || p.Lows.Length < 3) return RawDecision.None;
-            if (_lastFillBar > 0 && p.CurrentBar - _lastFillBar < 5) return RawDecision.None;
+            if (_lastFillBar > 0 && p.CurrentBar - _lastFillBar < StrategyConfig.Modules.SMC_COOLDOWN_BARS) return RawDecision.None;
 
             if (p.Lows[0] > p.Highs[2] + _tickSize && p.Lows[0] - p.Highs[2] > atr * MIN_GAP_ATR)
             { _bullFVG2 = _bullFVG1; _bullFVG1 = new FairValueGap { Type = FVGType.Bullish, Upper = p.Lows[0], Lower = p.Highs[2], CreatedBar = p.CurrentBar }; }
@@ -63,12 +63,12 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (!fvg.IsValid || fvg.IsFilled) return RawDecision.None;
             if (p.CurrentBar - fvg.CreatedBar > MAX_AGE_BARS) { fvg = FairValueGap.Empty; return RawDecision.None; }
             if (!(p.Low <= fvg.Upper && p.Close >= fvg.Lower)) return RawDecision.None;
-            int score = Math.Min(100, 55 + (fvg.Size >= atr * 0.5 ? 5 : 0));
-            if (p.Close < (p.High + p.Low) / 2.0) score -= 8; // Soft Penalty instead of hard block
+            int score = Math.Min(100, StrategyConfig.Modules.SMC_FVG_BASE_SCORE + (fvg.Size >= atr * 0.5 ? StrategyConfig.Modules.SMC_FVG_BONUS_SIZE : 0));
+            if (p.Close < (p.High + p.Low) / 2.0) score -= StrategyConfig.Modules.SMC_FVG_PENALTY_WEAK_CLOSE; // Soft Penalty instead of hard block
             
             if (p.Low <= fvg.Lower) fvg.IsFilled = true;
 
-            double stop = Math.Min(fvg.Lower - 2 * _tickSize, p.Close - 1.0 * atr);
+            double stop = Math.Min(fvg.Lower - StrategyConfig.Modules.SMC_STOP_BUFFER_TICKS * _tickSize, p.Close - 1.0 * atr);
             return new RawDecision
             {
                 Direction = SignalDirection.Long, RawScore = score, IsValid = true,
@@ -87,12 +87,12 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (!fvg.IsValid || fvg.IsFilled) return RawDecision.None;
             if (p.CurrentBar - fvg.CreatedBar > MAX_AGE_BARS) { fvg = FairValueGap.Empty; return RawDecision.None; }
             if (!(p.High >= fvg.Lower && p.Close <= fvg.Upper)) return RawDecision.None;
-            int score = Math.Min(100, 55 + (fvg.Size >= atr * 0.5 ? 5 : 0));
-            if (p.Close > (p.High + p.Low) / 2.0) score -= 8; // Soft Penalty
+            int score = Math.Min(100, StrategyConfig.Modules.SMC_FVG_BASE_SCORE + (fvg.Size >= atr * 0.5 ? StrategyConfig.Modules.SMC_FVG_BONUS_SIZE : 0));
+            if (p.Close > (p.High + p.Low) / 2.0) score -= StrategyConfig.Modules.SMC_FVG_PENALTY_WEAK_CLOSE; // Soft Penalty
             
             if (p.High >= fvg.Upper) fvg.IsFilled = true;
 
-            double stop = Math.Max(fvg.Upper + 2 * _tickSize, p.Close + 1.0 * atr);
+            double stop = Math.Max(fvg.Upper + StrategyConfig.Modules.SMC_STOP_BUFFER_TICKS * _tickSize, p.Close + 1.0 * atr);
             return new RawDecision
             {
                 Direction = SignalDirection.Short, RawScore = score, IsValid = true,
@@ -127,21 +127,21 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             var p = snapshot.Primary;
             double atr = snapshot.ATR > 0 ? snapshot.ATR : _tickSize * 10;
             if (p.Lows == null || p.Lows.Length < 3) return RawDecision.None;
-            if (_lastFillBar > 0 && p.CurrentBar - _lastFillBar < 5) return RawDecision.None;
+            if (_lastFillBar > 0 && p.CurrentBar - _lastFillBar < StrategyConfig.Modules.SMC_COOLDOWN_BARS) return RawDecision.None;
 
             if (p.Lows.Length >= 3 && p.Lows[1] < p.Lows[0] && p.Lows[1] < p.Lows[2])
-            { if (_sLo1 <= 0) { _sLo1 = p.Lows[1]; _sLo1B = p.CurrentBar - 1; } else if (p.CurrentBar - 1 - _sLo1B >= 5) { _sLo2 = _sLo1; _sLo2B = _sLo1B; _sLo1 = p.Lows[1]; _sLo1B = p.CurrentBar - 1; } }
+            { if (_sLo1 <= 0) { _sLo1 = p.Lows[1]; _sLo1B = p.CurrentBar - 1; } else if (p.CurrentBar - 1 - _sLo1B >= StrategyConfig.Modules.SMC_LIQ_PIVOT_COOLDOWN) { _sLo2 = _sLo1; _sLo2B = _sLo1B; _sLo1 = p.Lows[1]; _sLo1B = p.CurrentBar - 1; } }
             if (p.Highs.Length >= 3 && p.Highs[1] > p.Highs[0] && p.Highs[1] > p.Highs[2])
-            { if (_sHi1 <= 0) { _sHi1 = p.Highs[1]; _sHi1B = p.CurrentBar - 1; } else if (p.CurrentBar - 1 - _sHi1B >= 5) { _sHi2 = _sHi1; _sHi2B = _sHi1B; _sHi1 = p.Highs[1]; _sHi1B = p.CurrentBar - 1; } }
+            { if (_sHi1 <= 0) { _sHi1 = p.Highs[1]; _sHi1B = p.CurrentBar - 1; } else if (p.CurrentBar - 1 - _sHi1B >= StrategyConfig.Modules.SMC_LIQ_PIVOT_COOLDOWN) { _sHi2 = _sHi1; _sHi2B = _sHi1B; _sHi1 = p.Highs[1]; _sHi1B = p.CurrentBar - 1; } }
 
-            if (_sLo1 > 0 && _sLo2 > 0 && Math.Abs(_sLo1 - _sLo2) < atr * 0.3 && Math.Abs(_sLo1B - _sLo2B) <= 100)
+            if (_sLo1 > 0 && _sLo2 > 0 && Math.Abs(_sLo1 - _sLo2) < atr * StrategyConfig.Modules.SMC_LIQ_MAX_LEVEL_DIFF_ATR && Math.Abs(_sLo1B - _sLo2B) <= StrategyConfig.Modules.SMC_LIQ_MAX_AGE_BARS)
             {
                 double lv = Math.Min(_sLo1, _sLo2);
                 if (p.Low < lv - _tickSize && p.Close > lv)
                 {
-                    int score = 60;
+                    int score = StrategyConfig.Modules.SMC_LIQ_BASE_SCORE;
 
-                    double stop = Math.Min(p.Low - 2 * _tickSize, p.Close - 1.0 * atr);
+                    double stop = Math.Min(p.Low - StrategyConfig.Modules.SMC_STOP_BUFFER_TICKS * _tickSize, p.Close - 1.0 * atr);
                     _sLo1 = 0; _sLo2 = 0;
                     return new RawDecision
                     {
@@ -153,14 +153,14 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                     };
                 }
             }
-            if (_sHi1 > 0 && _sHi2 > 0 && Math.Abs(_sHi1 - _sHi2) < atr * 0.3 && Math.Abs(_sHi1B - _sHi2B) <= 100)
+            if (_sHi1 > 0 && _sHi2 > 0 && Math.Abs(_sHi1 - _sHi2) < atr * StrategyConfig.Modules.SMC_LIQ_MAX_LEVEL_DIFF_ATR && Math.Abs(_sHi1B - _sHi2B) <= StrategyConfig.Modules.SMC_LIQ_MAX_AGE_BARS)
             {
                 double lv = Math.Max(_sHi1, _sHi2);
                 if (p.High > lv + _tickSize && p.Close < lv)
                 {
-                    int score = 60;
+                    int score = StrategyConfig.Modules.SMC_LIQ_BASE_SCORE;
 
-                    double stop = Math.Max(p.High + 2 * _tickSize, p.Close + 1.0 * atr);
+                    double stop = Math.Max(p.High + StrategyConfig.Modules.SMC_STOP_BUFFER_TICKS * _tickSize, p.Close + 1.0 * atr);
                     _sHi1 = 0; _sHi2 = 0;
                     return new RawDecision
                     {
@@ -213,14 +213,14 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
         private RawDecision Bld(bool isLong, BarSnapshot p, MarketSnapshot snap, double atr, double level, string label)
         {
-            int score = 58;
+            int score = StrategyConfig.Modules.SMC_SESS_BASE_SCORE;
             double barMid = (p.High + p.Low) / 2.0;
-            if (isLong && p.Close < barMid) score -= 8;
-            if (!isLong && p.Close > barMid) score -= 8;
+            if (isLong && p.Close < barMid) score -= StrategyConfig.Modules.SMC_SESS_PENALTY_WEAK_CLOSE;
+            if (!isLong && p.Close > barMid) score -= StrategyConfig.Modules.SMC_SESS_PENALTY_WEAK_CLOSE;
 
             double stop = isLong
-                ? Math.Min(p.Low - 2 * _tickSize, p.Close - 1.0 * atr)
-                : Math.Max(p.High + 2 * _tickSize, p.Close + 1.0 * atr);
+                ? Math.Min(p.Low - StrategyConfig.Modules.SMC_STOP_BUFFER_TICKS * _tickSize, p.Close - 1.0 * atr)
+                : Math.Max(p.High + StrategyConfig.Modules.SMC_STOP_BUFFER_TICKS * _tickSize, p.Close + 1.0 * atr);
 
             return new RawDecision
             {
@@ -246,7 +246,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         private int _ibCompleteBar;
         private bool _tradedHi, _tradedLo;
 
-        private const int IB_MINUTES = 60;
+        private const int IB_MINUTES = StrategyConfig.Modules.SMC_IB_MINUTES;
 
         public void Initialise(double tickSize, double tickValue) { _tickSize = tickSize; _tickValue = tickValue; }
         public void OnSessionOpen(MarketSnapshot snapshot)
@@ -279,16 +279,16 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                 }
                 return RawDecision.None;
             }
-            if (p.CurrentBar - _ibCompleteBar < 3) return RawDecision.None;
-            double buf = atr * 0.1;
+            if (p.CurrentBar - _ibCompleteBar < StrategyConfig.Modules.SMC_IB_POST_WAIT_BARS) return RawDecision.None;
+            double buf = atr * StrategyConfig.Modules.SMC_IB_RETEST_BUFFER_ATR;
             double ibRange = _ibHigh - _ibLow;
 
             if (!_tradedLo && p.Low <= _ibLow + buf && p.Close > _ibLow)
             {
                 _tradedLo = true;
-                int score = 52;
+                int score = StrategyConfig.Modules.SMC_IB_BASE_SCORE;
 
-                double stop = Math.Min(_ibLow - 2 * _tickSize, p.Close - 1.0 * atr);
+                double stop = Math.Min(_ibLow - StrategyConfig.Modules.SMC_STOP_BUFFER_TICKS * _tickSize, p.Close - 1.0 * atr);
                 return new RawDecision
                 {
                     Direction = SignalDirection.Long, RawScore = score, IsValid = true,
@@ -303,9 +303,9 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (!_tradedHi && p.High >= _ibHigh - buf && p.Close < _ibHigh)
             {
                 _tradedHi = true;
-                int score = 52;
+                int score = StrategyConfig.Modules.SMC_IB_BASE_SCORE;
 
-                double stop = Math.Max(_ibHigh + 2 * _tickSize, p.Close + 1.0 * atr);
+                double stop = Math.Max(_ibHigh + StrategyConfig.Modules.SMC_STOP_BUFFER_TICKS * _tickSize, p.Close + 1.0 * atr);
                 return new RawDecision
                 {
                     Direction = SignalDirection.Short, RawScore = score, IsValid = true,

@@ -78,8 +78,8 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         // Price ring buffers for ZLEMA lag correction
         // lag(9)  = (9-1)/2  = 4  → ring depth 5
         // lag(21) = (21-1)/2 = 10 → ring depth 11
-        private const int LAG9  = (9  - 1) / 2;   // 4
-        private const int LAG21 = (21 - 1) / 2;   // 10
+        private const int LAG9  = (StrategyConfig.Modules.EMA_FAST_PERIOD - 1) / 2;
+        private const int LAG21 = (StrategyConfig.Modules.EMA_SLOW_PERIOD - 1) / 2;
         private readonly double[] _ring9  = new double[LAG9  + 1];
         private readonly double[] _ring21 = new double[LAG21 + 1];
         private int _ring9Idx  = 0, _ring9Count  = 0;
@@ -87,7 +87,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
         // ── Cooldown ──────────────────────────────────────────────────────
         private int _lastSignalBar  = -1;
-        private const int SIGNAL_COOLDOWN = 8;    // longer than SMC — EMA is slower
+        private const int SIGNAL_COOLDOWN = StrategyConfig.Defaults.SIGNAL_COOLDOWN_EMA;    // longer than SMC — EMA is slower
 
         // ── IConditionSet lifecycle ───────────────────────────────────────
 
@@ -149,19 +149,19 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             bool isLong = (cross == EMACross.Bullish);
 
             // ── Score & Context Gates (Softened) ──────────────────────────
-            int score = 60;
+            int score = StrategyConfig.Modules.EMA_BASE_SCORE;
             double atr = snapshot.ATR > 0 ? snapshot.ATR : _tickSize * 10;
 
             // Gate 1: SMF regime agreement (Soft Penalty)
             int regime = (int)snapshot.Get(SnapKeys.Regime);
-            if (isLong  && regime < 0) score -= 12; // counter-regime penalty
-            if (!isLong && regime > 0) score -= 12;
+            if (isLong  && regime < 0) score -= StrategyConfig.Modules.EMA_PENALTY_REGIME; // counter-regime penalty
+            if (!isLong && regime > 0) score -= StrategyConfig.Modules.EMA_PENALTY_REGIME;
 
             // Gate 2: VWAP side agreement (Soft Penalty)
             if (snapshot.VWAP > 0)
             {
-                if (isLong  && p.Close < snapshot.VWAP) score -= 10; // wrong-side VWAP penalty
-                if (!isLong && p.Close > snapshot.VWAP) score -= 10;
+                if (isLong  && p.Close < snapshot.VWAP) score -= StrategyConfig.Modules.EMA_PENALTY_VWAP; // wrong-side VWAP penalty
+                if (!isLong && p.Close > snapshot.VWAP) score -= StrategyConfig.Modules.EMA_PENALTY_VWAP;
             }
 
             // EMA separation — wide cross = stronger momentum
@@ -232,8 +232,8 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
             _ema9Prev  = _ema9Now;
             _ema21Prev = _ema21Now;
-            _ema9Now   = MathFlow.ZLEmaStep(close, lag9Price,  _ema9Prev,  9);
-            _ema21Now  = MathFlow.ZLEmaStep(close, lag21Price, _ema21Prev, 21);
+            _ema9Now   = MathFlow.ZLEmaStep(close, lag9Price,  _ema9Prev,  StrategyConfig.Modules.EMA_FAST_PERIOD);
+            _ema21Now  = MathFlow.ZLEmaStep(close, lag21Price, _ema21Prev, StrategyConfig.Modules.EMA_SLOW_PERIOD);
             _warmupBars++;
         }
     }
@@ -286,7 +286,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
         // Cooldown
         private int _lastSignalBar = -1;
-        private const int SIGNAL_COOLDOWN = 10;   // ADX is slow — longer cooldown
+        private const int SIGNAL_COOLDOWN = StrategyConfig.Defaults.SIGNAL_COOLDOWN_ADX;   // ADX is slow — longer cooldown
 
         // ── IConditionSet lifecycle ───────────────────────────────────────
 

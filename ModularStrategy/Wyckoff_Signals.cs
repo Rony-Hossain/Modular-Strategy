@@ -34,7 +34,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
         // Re-entry suppression
         protected int _lastSignalBar = -1;
-        protected const int SIGNAL_COOLDOWN = 10;
+        protected const int SIGNAL_COOLDOWN = StrategyConfig.Modules.WY_COOLDOWN_BARS;
 
         // Episode tracking (prevents firing multiple times on same rejection)
         protected double _activeLevel = 0.0;
@@ -80,18 +80,18 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         {
             if (p.Close < level) return RawDecision.None; // failed spring
 
-            int score = 65;
+            int score = StrategyConfig.Modules.WY_BASE_SCORE;
             // footprint confirms absorption at low
-            if (snap.Get(SnapKeys.VolDeltaSl) > 0) score += 10;
+            if (snap.Get(SnapKeys.VolDeltaSl) > 0) score += StrategyConfig.Modules.WY_BONUS_ABSORPTION;
             
             return new RawDecision
             {
                 Direction = SignalDirection.Long,
                 Source    = SignalSource.Wyckoff_Spring,
                 EntryPrice = p.Close,
-                StopPrice  = p.Low - (2 * _tickSize),
-                TargetPrice = p.Close + atr * 1.5,
-                Target2Price = p.Close + atr * 3.0,
+                StopPrice  = p.Low - (StrategyConfig.Modules.WY_STOP_BUFFER_TICKS * _tickSize),
+                TargetPrice = p.Close + atr * StrategyConfig.Modules.WY_T1_ATR_DIST,
+                Target2Price = p.Close + atr * StrategyConfig.Modules.WY_T2_ATR_DIST,
                 Label     = $"Spring @ {level:F2}",
                 RawScore  = score,
                 IsValid   = true,
@@ -103,17 +103,17 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         {
             if (p.Close > level) return RawDecision.None; // failed upthrust
 
-            int score = 65;
-            if (snap.Get(SnapKeys.VolDeltaSh) < 0) score += 10;
+            int score = StrategyConfig.Modules.WY_BASE_SCORE;
+            if (snap.Get(SnapKeys.VolDeltaSh) < 0) score += StrategyConfig.Modules.WY_BONUS_ABSORPTION;
 
             return new RawDecision
             {
                 Direction = SignalDirection.Short,
                 Source    = SignalSource.Wyckoff_Upthrust,
                 EntryPrice = p.Close,
-                StopPrice  = p.High + (2 * _tickSize),
-                TargetPrice = p.Close - atr * 1.5,
-                Target2Price = p.Close - atr * 3.0,
+                StopPrice  = p.High + (StrategyConfig.Modules.WY_STOP_BUFFER_TICKS * _tickSize),
+                TargetPrice = p.Close - atr * StrategyConfig.Modules.WY_T1_ATR_DIST,
+                Target2Price = p.Close - atr * StrategyConfig.Modules.WY_T2_ATR_DIST,
                 Label     = $"Upthrust @ {level:F2}",
                 RawScore  = score,
                 IsValid   = true,

@@ -380,27 +380,27 @@ namespace NinjaTrader.NinjaScript.Strategies
             get
             {
                 return new FootprintTradeAdvisorConfig(
-                    unavailablePolicy: FootprintTradeUnavailablePolicy.HoldNeutral,
-                    minConvictionDeltaPct: 0.10,
-                    volumeDominanceRatio: 1.30,
-                    hardExitDeltaPct: 0.18,
-                    hardExitVolumeDominanceRatio: 1.60,
-                    hardExitExtremeDeltaThreshold: 25.0,
-                    tightenCumDeltaSlopeThreshold: 25.0,
-                    hardExitCumDeltaSlopeThreshold: 50.0,
-                    absorptionStrongThreshold: 50.0,
-                    absorptionModerateThreshold: 30.0,
-                    minStackedLevelsForConcern: 3,
-                    preT1TightenAtScore: 40,
-                    preT1ExitAtScore: 70,
-                    postT1TightenAtScore: 50,
-                    postT1ExitAtScore: 80,
-                    minProfitTicksForExitEarly: 4.0,
-                    tightenFactor: 1.20,
-                    strongTightenFactor: 1.35,
-                    smfNativeScoreBias: -5,
-                    bosScoreBias: 0,
-                    retestScoreBias: 5);
+                    unavailablePolicy:               FootprintTradeUnavailablePolicy.HoldNeutral,
+                    minConvictionDeltaPct:           StrategyConfig.Modules.TA_MIN_CONVICTION_DELTA_PCT,
+                    volumeDominanceRatio:            StrategyConfig.Modules.TA_VOLUME_DOMINANCE_RATIO,
+                    hardExitDeltaPct:                StrategyConfig.Modules.TA_HARD_EXIT_DELTA_PCT,
+                    hardExitVolumeDominanceRatio:    StrategyConfig.Modules.TA_HARD_EXIT_VOL_DOM_RATIO,
+                    hardExitExtremeDeltaThreshold:   StrategyConfig.Modules.TA_HARD_EXIT_EXTREME_DELTA,
+                    tightenCumDeltaSlopeThreshold:   StrategyConfig.Modules.TA_TIGHTEN_CUM_DELTA_SLOPE,
+                    hardExitCumDeltaSlopeThreshold:  StrategyConfig.Modules.TA_HARD_EXIT_CUM_DELTA_SLOPE,
+                    absorptionStrongThreshold:       StrategyConfig.Modules.TA_ABSORPTION_STRONG_THRESHOLD,
+                    absorptionModerateThreshold:     StrategyConfig.Modules.TA_ABSORPTION_MODERATE_THRESHOLD,
+                    minStackedLevelsForConcern:      StrategyConfig.Modules.TA_MIN_STACKED_LEVELS_CONCERN,
+                    preT1TightenAtScore:             StrategyConfig.Modules.TA_PRE_T1_TIGHTEN_SCORE,
+                    preT1ExitAtScore:                StrategyConfig.Modules.TA_PRE_T1_EXIT_SCORE,
+                    postT1TightenAtScore:            StrategyConfig.Modules.TA_POST_T1_TIGHTEN_SCORE,
+                    postT1ExitAtScore:               StrategyConfig.Modules.TA_POST_T1_EXIT_SCORE,
+                    minProfitTicksForExitEarly:      StrategyConfig.Modules.TA_MIN_PROFIT_TICKS_EXIT_EARLY,
+                    tightenFactor:                   StrategyConfig.Modules.TA_TIGHTEN_FACTOR,
+                    strongTightenFactor:             StrategyConfig.Modules.TA_STRONG_TIGHTEN_FACTOR,
+                    smfNativeScoreBias:              StrategyConfig.Modules.TA_SMF_NATIVE_SCORE_BIAS,
+                    bosScoreBias:                    StrategyConfig.Modules.TA_BOS_SCORE_BIAS,
+                    retestScoreBias:                 StrategyConfig.Modules.TA_RETEST_SCORE_BIAS);
             }
         }
     }

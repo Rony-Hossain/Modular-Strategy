@@ -244,7 +244,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             _lowsD   = new double[FeedConstants.SNAPSHOT_DEPTH]; _opensD = new double[FeedConstants.SNAPSHOT_DEPTH];
             _volsD   = new double[FeedConstants.SNAPSHOT_DEPTH];
 
-            _trBuffer = new double[14];   // ATR period
+            _trBuffer = new double[StrategyConfig.Modules.DF_ATR_PERIOD];   // ATR period
 
             // Order flow arrays — same depth as price arrays
             _askVols0   = new double[FeedConstants.SNAPSHOT_DEPTH];
@@ -459,7 +459,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (_host.CurrentBar < 1) return;
 
             double tr  = MathIndicators.TrueRange(_host.High[0], _host.Low[0], _host.Close[1]);
-            var    res = MathIndicators.ATR_Update(tr, _atrPrev, 14,
+            var    res = MathIndicators.ATR_Update(tr, _atrPrev, StrategyConfig.Modules.DF_ATR_PERIOD,
                              _trBuffer, ref _trBufIdx, ref _trBufCount, ref _trBufSum);
             _atrPrev = res.ATR;
         }
@@ -468,7 +468,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         // OPENING RANGE BOX
         // ===================================================================
 
-        private const int ORB_BARS = 30;
+        private const int ORB_BARS = StrategyConfig.Modules.DF_ORB_BARS;
 
         private void UpdateORB()
         {
@@ -720,8 +720,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 VWAP         = _vwap,
                 VWAPUpperSD1 = _vwap + _sdSession,
                 VWAPLowerSD1 = _vwap - _sdSession,
-                VWAPUpperSD2 = _vwap + (2.0 * _sdSession),
-                VWAPLowerSD2 = _vwap - (2.0 * _sdSession),
+                VWAPUpperSD2 = _vwap + (StrategyConfig.Modules.DF_VWAP_SD2_MULT * _sdSession),
+                VWAPLowerSD2 = _vwap - (StrategyConfig.Modules.DF_VWAP_SD2_MULT * _sdSession),
                 ATR          = atr,
                 ATRTicks     = (tickSize > 0) ? atr / tickSize : 0.0,
                 ORBHigh      = _orbHigh > double.MinValue ? _orbHigh : 0.0,

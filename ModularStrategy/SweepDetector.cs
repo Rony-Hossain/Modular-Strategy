@@ -9,9 +9,9 @@ namespace NinjaTrader.NinjaScript.Strategies
     /// </summary>
     public sealed class SweepDetector
     {
-        private const long WINDOW_MS    = 200;
-        private const int  SWEEP_LEVELS = 3;
-        private const int  RING_CAPACITY = 512;
+        private const long WINDOW_MS    = StrategyConfig.Modules.SW_WINDOW_MS;
+        private const int  SWEEP_LEVELS = StrategyConfig.Modules.SW_SWEEP_LEVELS;
+        private const int  RING_CAPACITY = StrategyConfig.Modules.SW_RING_CAPACITY;
 
         private readonly double _tickSize;
 
@@ -38,11 +38,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             _tickSize = tickSize > 0 ? tickSize : 0.25;
             
-            _buyTime   = new long[RING_CAPACITY];
-            _buyPrice  = new double[RING_CAPACITY];
+            _buyTime   = new long[StrategyConfig.Modules.SW_RING_CAPACITY];
+            _buyPrice  = new double[StrategyConfig.Modules.SW_RING_CAPACITY];
             
-            _sellTime  = new long[RING_CAPACITY];
-            _sellPrice = new double[RING_CAPACITY];
+            _sellTime  = new long[StrategyConfig.Modules.SW_RING_CAPACITY];
+            _sellPrice = new double[StrategyConfig.Modules.SW_RING_CAPACITY];
             
             LastSweepAgeMs = long.MaxValue;
         }

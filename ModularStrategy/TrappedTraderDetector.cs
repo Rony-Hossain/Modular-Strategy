@@ -30,7 +30,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private BarSnap _barMinus2;
         private int     _barsSeen = 0;
 
-        public TrappedTraderDetector(double clusterRatio = 2.0, double rejectionFrac = 0.5)
+        public TrappedTraderDetector(double clusterRatio = StrategyConfig.Modules.TT_CLUSTER_RATIO, double rejectionFrac = StrategyConfig.Modules.TT_REJECTION_FRAC)
         {
             _clusterRatio  = clusterRatio;
             _rejectionFrac = rejectionFrac;

@@ -33,8 +33,8 @@ namespace NinjaTrader.NinjaScript.Strategies
     public class SignalRankingEngine
     {
         // ── Pre-allocated ranking scratch buffer — no heap allocation in hot path
-        private const int MAX_CANDIDATES = 32;
-        private readonly RankedCandidate[] _ranked = new RankedCandidate[MAX_CANDIDATES];
+        private const int MAX_CANDIDATES = StrategyConfig.Modules.RE_MAX_CANDIDATES;
+        private readonly RankedCandidate[] _ranked = new RankedCandidate[StrategyConfig.Modules.RE_MAX_CANDIDATES];
 
         // ── Confluence floor — candidates below this are discarded
         // Scaled by SetVolumetricMode() each bar
@@ -70,7 +70,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// </summary>
         public void SetVolumetricMode(bool hasVolumetric)
         {
-            _minNetScore = hasVolumetric ? 40 : 25;
+            _minNetScore = hasVolumetric ? StrategyConfig.Floors.MIN_NET_VOLUMETRIC : StrategyConfig.Floors.MIN_NET_STRUCTURE;
         }
 
         /// <summary>
@@ -120,7 +120,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Apply conflict penalty if modules disagree
                 if (marketConflict)
                 {
-                    conf.NetScore -= 15; // 15 point penalty for directional disagreement
+                    conf.NetScore -= StrategyConfig.Penalties.RANK_CONFLICT; // 15 point penalty for directional disagreement
                     _log?.Warn(barTime, "RANK_CONFLICT [{0}] -15 penalty applied", candidate.ConditionSetId);
                 }
 
@@ -144,8 +144,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool isBOSWave = (candidate.ConditionSetId ?? "").StartsWith("SMF_Native_");
                 bool isBOS     = (candidate.ConditionSetId ?? "") == "SMC_BOS_v1";
 
-                int bosFloor       = _minNetScore > 30 ? 20 : 10;  // scales with volumetric mode
-                int effectiveFloor = isBOSWave ? 0
+                int bosFloor = _minNetScore > 30 ? StrategyConfig.Floors.BOS_FLOOR_VOLUMETRIC : StrategyConfig.Floors.BOS_FLOOR_STRUCTURE;  // scales with volumetric mode
+                int effectiveFloor = isBOSWave ? StrategyConfig.Floors.BOSWAVE_FLOOR
                                    : isBOS     ? bosFloor
                                    : _minNetScore;
 
@@ -157,8 +157,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (isLong && !isORB)
                 {
                     double h4b = snap.Get(SnapKeys.H4HrEmaBias);
-                    if (h4b < 0) effectiveFloor = Math.Max(effectiveFloor, 60);
-                    else if (h4b == 0) effectiveFloor = Math.Max(effectiveFloor, 70);
+                    if (h4b < 0) effectiveFloor = Math.Max(effectiveFloor, StrategyConfig.Floors.LONG_H4_BEARISH_FLOOR);
+                    else if (h4b == 0) effectiveFloor = Math.Max(effectiveFloor, StrategyConfig.Floors.LONG_H4_NEUTRAL_FLOOR);
                 }
 
                 // ── VETO: discard immediately ──────────────────────────────

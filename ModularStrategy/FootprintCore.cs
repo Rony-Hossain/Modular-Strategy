@@ -44,7 +44,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             LevelHistoryMaxLevels    = levelHistoryMaxLevels;
         }
 
-        public static FootprintCoreConfig Default => new FootprintCoreConfig(2.0, 3.0, 3, 5, 128);
+        public static FootprintCoreConfig Default => new FootprintCoreConfig(StrategyConfig.Modules.FC_DEFAULT_ABSORPTION_RATIO, StrategyConfig.Modules.FC_DEFAULT_IMBALANCE_RATIO, StrategyConfig.Modules.FC_DEFAULT_MIN_STACKED, StrategyConfig.Modules.FC_DEFAULT_HISTORY_CAP, StrategyConfig.Modules.FC_DEFAULT_MAX_LEVELS);
     }
 
     /// <summary>
@@ -308,7 +308,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private readonly FootprintCoreConfig   _config;
         private readonly LevelHistoryTracker  _levelHistory;
         private readonly TrappedTraderDetector _trappedTrader = new TrappedTraderDetector();
-        private readonly LevelStat[]           _iceQueryBuf = new LevelStat[2];   // ICE_LOOKBACK_BARS
+        private readonly LevelStat[]           _iceQueryBuf = new LevelStat[StrategyConfig.Modules.FC_ICE_LOOKBACK_BARS];   // ICE_LOOKBACK_BARS
         private bool                           _initialized;
 
         public FootprintCore(FootprintAssembler assembler, FootprintCoreConfig config)
@@ -601,8 +601,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Phase 2.3 — Exhaustion
             // Volume at the extreme is far below the bar's per-level average.
             // Signals failed thrust / loss of participation at the turn.
-            const double LOW_VOL_RATIO = 0.5;          // ≤50% of avg-level vol
-            const int    MIN_LEVELS_FOR_EXH = 4;        // need 4+ levels for meaningful "avg"
+            const double LOW_VOL_RATIO = StrategyConfig.Modules.FC_EXH_LOW_VOL_RATIO;          // ≤50% of avg-level vol
+            const int MIN_LEVELS_FOR_EXH = StrategyConfig.Modules.FC_EXH_MIN_LEVELS;        // need 4+ levels for meaningful "avg"
 
             double totalBarVol  = baseResult.TotalBuyVol + baseResult.TotalSellVol;
             double avgLevelVol  = baseResult.LevelCount > 0 ? totalBarVol / baseResult.LevelCount : 0.0;
@@ -617,10 +617,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Phase 2.5 — Iceberg
             // Current-bar absorption at the modal-volume price, repeated across prior bars at same price.
-            const double ICE_CURR_ABS_RATIO   = 2.0;   // current-bar: maxCombinedVol >= 2.0 * avgLevelVol
-            const double ICE_PRIOR_FLOOR_RATIO = 1.0;  // prior-bar floor at same price vs current avgLevelVol
-            const int    ICE_MIN_RECURRENCES  = 2;     // >=2 bars in the 3-bar window (current + 2 prior)
-            const int    ICE_LOOKBACK_BARS    = 2;     // prior bars queried
+            const double ICE_CURR_ABS_RATIO = StrategyConfig.Modules.FC_ICE_CURR_ABS_RATIO;   // current-bar: maxCombinedVol >= 2.0 * avgLevelVol
+            const double ICE_PRIOR_FLOOR_RATIO = StrategyConfig.Modules.FC_ICE_PRIOR_FLOOR_RATIO;  // prior-bar floor at same price vs current avgLevelVol
+            const int ICE_MIN_RECURRENCES = StrategyConfig.Modules.FC_ICE_MIN_RECURRENCES;     // >=2 bars in the 3-bar window (current + 2 prior)
+            const int ICE_LOOKBACK_BARS = StrategyConfig.Modules.FC_ICE_LOOKBACK_BARS;     // prior bars queried
 
             double iceAbsPrice = 0.0;
             bool   bullIceberg = false;

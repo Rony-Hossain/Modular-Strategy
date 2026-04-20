@@ -57,11 +57,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         public SignalGenerator(
             InstrumentKind  instrument,
             double          accountSize,
-            double          riskPctPerTrade  = RiskDefaults.RISK_PCT,
-            int             maxContracts     = RiskDefaults.MAX_CONTRACTS,
-            double          maxDailyLoss     = RiskDefaults.MAX_DAILY_LOSS,
-            double          minRRRatio       = RiskDefaults.MIN_RR_RATIO,
-            int             minScore         = GradeThresholds.REJECT,
+            double          riskPctPerTrade  = StrategyConfig.Policy.RISK_PCT_DEFAULT,
+            int             maxContracts     = StrategyConfig.Policy.MAX_CONTRACTS,
+            double          maxDailyLoss     = StrategyConfig.Policy.MAX_DAILY_LOSS,
+            double          minRRRatio       = StrategyConfig.Policy.MIN_RR_RATIO,
+            int             minScore         = StrategyConfig.Policy.SCORE_REJECT,
             StrategyLogger  logger           = null,
             ISlippageModel  slippageModel    = null)   // ← NEW optional param, last position
         {
@@ -113,13 +113,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _log?.RiskCircuitBreaker(exitTime, "DailyLoss", _dailyPnL, _maxDailyLossDollars);
             }
 
-            if (MathPolicy.LossLimit_Directional(_consecutiveLosses, RiskDefaults.MAX_CONSECUTIVE_LOSSES))
+            if (MathPolicy.LossLimit_Directional(_consecutiveLosses, StrategyConfig.Policy.MAX_CONSECUTIVE_LOSS))
             {
                 _circuitBreakerHit = true;
                 _log?.RiskCircuitBreaker(exitTime, "ConsecutiveLoss", _dailyPnL, _maxDailyLossDollars);
             }
 
-            _log?.RiskConsecutiveLoss(exitTime, _consecutiveLosses, RiskDefaults.MAX_CONSECUTIVE_LOSSES);
+            _log?.RiskConsecutiveLoss(exitTime, _consecutiveLosses, StrategyConfig.Policy.MAX_CONSECUTIVE_LOSS);
         }
 
         /// <summary>
@@ -171,7 +171,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             //   where volume is typically high. The bleeding hours (4-6 AM) are
             //   deep into the session where AvgTrades is fully warm.
             {
-                const double THIN_MARKET_RATIO = 0.40;
+                const double THIN_MARKET_RATIO = StrategyConfig.Modules.SG_THIN_MARKET_RATIO;
 
                 double volTrades = snapshot.Get(SnapKeys.VolTrades);
                 double avgTrades = snapshot.Get(SnapKeys.AvgTrades);
@@ -194,8 +194,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Stop width and RR are now calculated from the realistic fill price,
             // not the theoretical close price. This is the core fix.
             double stopTicks = MathCore.DistanceInTicks(realisticEntry, decision.StopPrice, tickSize);
-            if (stopTicks < RiskDefaults.MIN_STOP_TICKS)
-                return Reject($"G2:StopTooTight({stopTicks:F1}ticks<{RiskDefaults.MIN_STOP_TICKS}) [post-slip]");
+            if (stopTicks < StrategyConfig.Policy.MIN_STOP_TICKS)
+                return Reject($"G2:StopTooTight({stopTicks:F1}ticks<{StrategyConfig.Policy.MIN_STOP_TICKS}) [post-slip]");
 
             // ── Gate 4: position sizing ───────────────────────────────────
             // Risk-based sizing: contracts = floor(accountSize × riskPct / (stopTicks × tickValue))

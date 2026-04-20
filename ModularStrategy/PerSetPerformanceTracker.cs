@@ -153,7 +153,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             // ── Lifetime footer ───────────────────────────────────────────
             // Only emit for sets that have enough trades to be statistically
             // meaningful (>= 10). Below 10 trades any win rate is noise.
-            const int MIN_LIFETIME_TRADES = 10;
+            const int MIN_LIFETIME_TRADES = StrategyConfig.Policy.PERF_MIN_LIFETIME_TRADES;
             _sortBuf.Clear();
             foreach (var kvp in _lifetime)
                 if (kvp.Value.Trades >= MIN_LIFETIME_TRADES)

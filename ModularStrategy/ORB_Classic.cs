@@ -37,7 +37,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         // Session State
         private SignalDirection _firstBreakout = SignalDirection.None;
         private int             _lastFillBar   = -1;
-        private const int       REENTRY_COOLDOWN = 5;
+        private const int       REENTRY_COOLDOWN = StrategyConfig.Defaults.SIGNAL_COOLDOWN_ORB;
 
         // ── Diagnostics ──
         private string _lastBailReason = "";
@@ -82,7 +82,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
             double atr = snapshot.ATR;
             if (atr <= 0) { _lastBailReason = "atr_zero"; return RawDecision.None; }
-            double buffer = 0.25 * atr;
+            double buffer = StrategyConfig.Modules.ORB_RELOAD_BUFFER_ATR * atr;
 
             // First Breakout Wins
             if (_firstBreakout == SignalDirection.None)
@@ -146,7 +146,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                     };
                 }
 
-                double stopDistance = Math.Max(100.0 * _tickSize, 1.0 * atr);
+                double stopDistance = Math.Max(StrategyConfig.Modules.ORB_MIN_STOP_TICKS * _tickSize, StrategyConfig.Modules.ORB_STOP_ATR_MULT * atr);
                 double entryPrice   = p.Close;
                 double stopPrice    = entryPrice - stopDistance;
                 double targetPrice  = entryPrice + stopDistance;
@@ -172,7 +172,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                     TargetPrice  = targetPrice,
                     Target2Price = entryPrice + (2.0 * stopDistance),
                     Label        = $"ORB Reload Long [{SetId}]",
-                    RawScore     = 85,
+                    RawScore     = StrategyConfig.Modules.ORB_BASE_SCORE,
                     IsValid      = true
                 };
             }
@@ -204,7 +204,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                     };
                 }
 
-                double stopDistance = Math.Max(100.0 * _tickSize, 1.0 * atr);
+                double stopDistance = Math.Max(StrategyConfig.Modules.ORB_MIN_STOP_TICKS * _tickSize, StrategyConfig.Modules.ORB_STOP_ATR_MULT * atr);
                 double entryPrice   = p.Close;
                 double stopPrice    = entryPrice + stopDistance;
                 double targetPrice  = entryPrice - stopDistance;
@@ -230,7 +230,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                     TargetPrice  = targetPrice,
                     Target2Price = entryPrice - (2.0 * stopDistance),
                     Label        = $"ORB Reload Short [{SetId}]",
-                    RawScore     = 85,
+                    RawScore     = StrategyConfig.Modules.ORB_BASE_SCORE,
                     IsValid      = true
                 };
             }

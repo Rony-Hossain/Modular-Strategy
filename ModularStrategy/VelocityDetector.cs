@@ -9,12 +9,12 @@ namespace NinjaTrader.NinjaScript.Strategies
     /// </summary>
     public sealed class VelocityDetector
     {
-        private const long   WINDOW_MS         = 1000;   // rolling velocity window
-        private const long   SAMPLE_INTERVAL_MS = 100;   // EMA sample rate
-        private const double EMA_ALPHA         = 0.05;   // smoothing (~2s effective window)
-        private const double SPIKE_MULTIPLIER  = 3.0;
-        private const double EMA_MIN           = 1.0;
-        private const int    RING_CAPACITY     = 2000;   // max ticks in 1s window (headroom)
+        private const long   WINDOW_MS         = StrategyConfig.Modules.VD_WINDOW_MS;   // rolling velocity window
+        private const long   SAMPLE_INTERVAL_MS = StrategyConfig.Modules.VD_SAMPLE_INTERVAL_MS;   // EMA sample rate
+        private const double EMA_ALPHA         = StrategyConfig.Modules.VD_EMA_ALPHA;   // smoothing (~2s effective window)
+        private const double SPIKE_MULTIPLIER  = StrategyConfig.Modules.VD_SPIKE_MULTIPLIER;
+        private const double EMA_MIN           = StrategyConfig.Modules.VD_EMA_MIN;
+        private const int    RING_CAPACITY     = StrategyConfig.Modules.VD_RING_CAPACITY;   // max ticks in 1s window (headroom)
 
         // Rolling window of (timeMs, volume, side) for the last WINDOW_MS
         private readonly long[]      _timeRing;
@@ -46,9 +46,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         public VelocityDetector()
         {
-            _timeRing = new long[RING_CAPACITY];
-            _volRing  = new long[RING_CAPACITY];
-            _sideRing = new Aggressor[RING_CAPACITY];
+            _timeRing = new long[StrategyConfig.Modules.VD_RING_CAPACITY];
+            _volRing  = new long[StrategyConfig.Modules.VD_RING_CAPACITY];
+            _sideRing = new Aggressor[StrategyConfig.Modules.VD_RING_CAPACITY];
             LastSpikeAgeMs = long.MaxValue;
         }
 

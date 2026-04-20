@@ -121,34 +121,34 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         // Bars available after Stage 1 to find a zone retest.
         // 10 bars = 50 minutes on a 5-min chart. Long enough to catch a
         // meaningful pullback, short enough not to trade stale structure.
-        private const int WINDOW_BARS = 10;
+        private const int WINDOW_BARS = StrategyConfig.Modules.HYBRID_WINDOW_BARS;
 
         // Minimum AbsorptionScore on the zone-touch bar.
         // The institutional wall must be present at the zone for re-aggression
         // to be genuine. Below this threshold, positive delta could be noise.
-        private const double MIN_ABSORPTION_SCORE = 20.0;
+        private const double MIN_ABSORPTION_SCORE = StrategyConfig.Modules.HYBRID_MIN_ABSORP;
 
         // ATR fraction added to zone edge for stop placement.
-        private const double ATR_STOP_BUFFER = 0.06;
+        private const double ATR_STOP_BUFFER = StrategyConfig.Modules.HYBRID_ATR_STOP_BUFFER;
 
         // Minimum stop width from entry.
-        private const double MIN_STOP_ATR_MULT = 0.18;
+        private const double MIN_STOP_ATR_MULT = StrategyConfig.Modules.HYBRID_MIN_STOP_ATR_MULT;
 
         // Stop lookback when zone boundaries are unavailable.
-        private const int STOP_LOOKBACK_BARS = 3;
+        private const int STOP_LOOKBACK_BARS = StrategyConfig.Modules.HYBRID_STOP_LOOKBACK_BARS;
 
         // Re-entry cooldown after a fill.
-        private const int REENTRY_COOLDOWN = 10;
+        private const int REENTRY_COOLDOWN = StrategyConfig.Modules.HYBRID_REENTRY_COOLDOWN;
 
         // T1 target range from entry, expressed as ATR multiples.
-        private const double MIN_T1_ATR_DIST = 0.5;
-        private const double MAX_T1_ATR_DIST = 4.0;
+        private const double MIN_T1_ATR_DIST = StrategyConfig.Modules.HYBRID_MIN_T1_ATR_DIST;
+        private const double MAX_T1_ATR_DIST = StrategyConfig.Modules.HYBRID_MAX_T1_ATR_DIST;
 
         // H4 EMA threshold: block Stage 1 if H4 is strongly opposing.
         // -1.0 = bearish H4 for a long signal = macro headwind.
         // 0.0 = neutral = acceptable.
         // We block only when H4 is actively bearish (-1.0), not when neutral.
-        private const double H4_BLOCK_THRESHOLD = -0.5;  // < -0.5 blocks long stage 1
+        private const double H4_BLOCK_THRESHOLD = StrategyConfig.Modules.HYBRID_H4_BLOCK_THRESHOLD;  // < -0.5 blocks long stage 1
 
         // ── Window state ──────────────────────────────────────────────────────
 
@@ -459,36 +459,36 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             double rewardTicks = Math.Abs(t1Price  - p.Close)  / tickSz;
             bool lowRR = (riskTicks > 0 && rewardTicks / riskTicks < 1.2);
 
-            int score = 80;
-            if (lowAbs)    score -= 5;
-            if (weakClose) score -= 8;
-            if (lowRR)     score -= 10;
+            int score = StrategyConfig.Modules.HYBRID_BASE_SCORE;
+            if (lowAbs)    score -= StrategyConfig.Modules.HYBRID_PENALTY_LOW_ABS;
+            if (weakClose) score -= StrategyConfig.Modules.HYBRID_PENALTY_WEAK_CLOSE;
+            if (lowRR)     score -= StrategyConfig.Modules.HYBRID_PENALTY_LOW_RR;
 
             // CVD divergence agrees: price pulled back while buyers absorbing at lows.
             // This is the triple-layer setup: structure + zone + divergence.
-            if (isLong  && snapshot.GetFlag(SnapKeys.BullDivergence)) score += 10;
-            if (!isLong && snapshot.GetFlag(SnapKeys.BearDivergence)) score += 10;
+            if (isLong  && snapshot.GetFlag(SnapKeys.BullDivergence)) score += StrategyConfig.Modules.HYBRID_BONUS_DIVERGENCE;
+            if (!isLong && snapshot.GetFlag(SnapKeys.BearDivergence)) score += StrategyConfig.Modules.HYBRID_BONUS_DIVERGENCE;
 
             // Historical imbalance zone overlap: a fourth independent structural anchor
-            if (isLong  && snapshot.GetFlag(SnapKeys.ImbalZoneAtBull)) score += 8;
-            if (!isLong && snapshot.GetFlag(SnapKeys.ImbalZoneAtBear)) score += 8;
+            if (isLong  && snapshot.GetFlag(SnapKeys.ImbalZoneAtBull)) score += StrategyConfig.Modules.HYBRID_BONUS_IMBAL_ZONE;
+            if (!isLong && snapshot.GetFlag(SnapKeys.ImbalZoneAtBear)) score += StrategyConfig.Modules.HYBRID_BONUS_IMBAL_ZONE;
 
             // Trapped participants: forced exits accelerate the move
-            if (isLong  && snapshot.GetFlag(SnapKeys.TrappedShorts)) score += 5;
-            if (!isLong && snapshot.GetFlag(SnapKeys.TrappedLongs))  score += 5;
+            if (isLong  && snapshot.GetFlag(SnapKeys.TrappedShorts)) score += StrategyConfig.Modules.HYBRID_BONUS_TRAPPED;
+            if (!isLong && snapshot.GetFlag(SnapKeys.TrappedLongs))  score += StrategyConfig.Modules.HYBRID_BONUS_TRAPPED;
 
             // CHoCH vs BOS: reversal events are higher conviction than continuations
-            if (_wasChoch) score += 4;
+            if (_wasChoch) score += StrategyConfig.Modules.HYBRID_BONUS_CHOCH;
 
             // Real-time tape iceberg at the zone
-            if (isLong  && snapshot.GetFlag(SnapKeys.TapeBullIceberg)) score += 3;
-            if (!isLong && snapshot.GetFlag(SnapKeys.TapeBearIceberg)) score += 3;
+            if (isLong  && snapshot.GetFlag(SnapKeys.TapeBullIceberg)) score += StrategyConfig.Modules.HYBRID_BONUS_TICE;
+            if (!isLong && snapshot.GetFlag(SnapKeys.TapeBearIceberg)) score += StrategyConfig.Modules.HYBRID_BONUS_TICE;
 
             // Exhaustion on the pullback bar: sellers ran out as they pulled back into zone
-            if (isLong  && snapshot.GetFlag(SnapKeys.BearExhaustion)) score += 3;
-            if (!isLong && snapshot.GetFlag(SnapKeys.BullExhaustion)) score += 3;
+            if (isLong  && snapshot.GetFlag(SnapKeys.BearExhaustion)) score += StrategyConfig.Modules.HYBRID_BONUS_TICE;
+            if (!isLong && snapshot.GetFlag(SnapKeys.BullExhaustion)) score += StrategyConfig.Modules.HYBRID_BONUS_TICE;
 
-            score = Math.Min(score, 95);
+            score = Math.Min(score, StrategyConfig.Modules.HYBRID_SCORE_CAP);
 
             // ── Disarm window after firing ─────────────────────────────────────
             // Prevent multiple signals from the same CHoCH/BOS event.

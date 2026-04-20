@@ -21,10 +21,10 @@ namespace NinjaTrader.NinjaScript.Strategies
     /// </summary>
     public sealed class FootprintDivergenceTracker
     {
-        private const int    PIVOT_K              = 3;     // 7-bar fractal
+        private const int    PIVOT_K              = StrategyConfig.Modules.FD_PIVOT_K;     // 7-bar fractal
         private const int    BUFFER_SIZE          = PIVOT_K * 2 + 1;
-        private const int    FLAG_LIFETIME_BARS   = 5;
-        private const double MIN_SWING_ATR_MULT   = 0.5;
+        private const int    FLAG_LIFETIME_BARS   = StrategyConfig.Modules.FD_FLAG_LIFETIME_BARS;
+        private const double MIN_SWING_ATR_MULT   = StrategyConfig.Modules.FD_MIN_SWING_ATR_MULT;
 
         private struct BarSnap
         {

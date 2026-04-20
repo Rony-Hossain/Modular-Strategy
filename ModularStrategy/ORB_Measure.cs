@@ -183,7 +183,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                 }
             }
             // 3. Track Windows
-            else if (_barsInWindow < 60)
+            else if (_barsInWindow < StrategyConfig.Modules.OM_OBSERVATION_WINDOW)
             {
                 _barsInWindow++;
                 
@@ -202,7 +202,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                 // Touch Detection
                 if (!_touchDetected)
                 {
-                    double buffer = 0.25 * _atrAtLock;
+                    double buffer = StrategyConfig.Modules.OM_RELOAD_BUFFER_ATR * _atrAtLock;
                     double bandLo = (_breakoutDir == SignalDirection.Long) ? (_poc - buffer) : (_val - buffer);
                     double bandHi = (_breakoutDir == SignalDirection.Long) ? (_vah + buffer) : (_poc + buffer);
 
@@ -247,7 +247,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                         _touchBearDiv = snapshot.GetFlag(SnapKeys.BearDivergence) ? 1 : 0;
                     }
                 }
-                else if (_postTouchBars < 12)
+                else if (_postTouchBars < StrategyConfig.Modules.OM_POST_TOUCH_WINDOW)
                 {
                     // 12-bar window after touch
                     _postTouchBars++;
@@ -296,7 +296,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             }
 
             // 4. Emit Log
-            if (_breakoutDir != SignalDirection.None && _barsInWindow >= 60 && !_loggedThisSession)
+            if (_breakoutDir != SignalDirection.None && _barsInWindow >= StrategyConfig.Modules.OM_OBSERVATION_WINDOW && !_loggedThisSession)
             {
                 EmitMeasurement(p.Time);
             }

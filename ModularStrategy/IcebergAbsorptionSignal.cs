@@ -127,40 +127,40 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         // AbsorptionScore gate. The paper requires a confirmed institutional wall.
         // 30 = "notable" per StrategyLogger docs. Below this the absorption could
         // be normal market noise, not a genuine iceberg defense.
-        private const double MIN_ABSORPTION_SCORE = 7.0;
+        private const double MIN_ABSORPTION_SCORE = StrategyConfig.Modules.ICE_MIN_ABSORPTION_SCORE;
 
         // High absorption bonus tier. Signals a substantially stronger wall —
         // the institution absorbed significantly more than typical.
-        private const double HIGH_ABSORPTION_SCORE = 12.0;
+        private const double HIGH_ABSORPTION_SCORE = StrategyConfig.Modules.ICE_HIGH_ABSORPTION_SCORE;
 
         // Alternative Tier 3: when no iceberg flag fires, accept high absorption
         // + favorable close position as evidence the wall held. This compensates
         // for bar-level iceberg requiring MaxCombinedVol at the exact bar extreme
         // (structurally rare for BullIceberg) and tape-level iceberg being unreliable
         // in backtests with simulated ticks.
-        private const double ALT_ICE_ABS_SCORE = 9.0;
-        private const double ALT_ICE_CLOSE_PCT = 0.6;
+        private const double ALT_ICE_ABS_SCORE = StrategyConfig.Modules.ICE_ALT_ICE_ABS_SCORE;
+        private const double ALT_ICE_CLOSE_PCT = StrategyConfig.Modules.ICE_ALT_ICE_CLOSE_PCT;
 
         // ATR fraction added to the bar extreme when placing stop.
         // Tighter than other sets because the exhaustion fired on THIS bar —
         // the structural level is fresh and precisely located.
-        private const double ATR_STOP_BUFFER = 0.06;
+        private const double ATR_STOP_BUFFER = StrategyConfig.Modules.ICE_ATR_STOP_BUFFER;
 
         // Minimum stop width. Prevents trivial stops on doji exhaustion bars.
-        private const double MIN_STOP_ATR_MULT = 0.18;
+        private const double MIN_STOP_ATR_MULT = StrategyConfig.Modules.ICE_MIN_STOP_ATR_MULT;
 
         // Stop lookback: only 2 bars. The exhaustion event fired on this bar.
         // Using 3+ bars would place the stop well below/above the actual
         // defended level, creating unnecessary risk.
-        private const int STOP_LOOKBACK_BARS = 2;
+        private const int STOP_LOOKBACK_BARS = StrategyConfig.Modules.ICE_STOP_LOOKBACK_BARS;
 
         // Re-entry suppression. Exhaustion reversals can have sharp initial
         // moves then retrace into consolidation — cooldown prevents chasing.
-        private const int REENTRY_COOLDOWN = 10;
+        private const int REENTRY_COOLDOWN = StrategyConfig.Modules.ICE_REENTRY_COOLDOWN;
 
         // T1 target: minimum and maximum ATR distance from entry.
-        private const double MIN_T1_ATR_DIST = 0.5;
-        private const double MAX_T1_ATR_DIST = 3.0;
+        private const double MIN_T1_ATR_DIST = StrategyConfig.Modules.ICE_MIN_T1_ATR_DIST;
+        private const double MAX_T1_ATR_DIST = StrategyConfig.Modules.ICE_MAX_T1_ATR_DIST;
 
         // ── State ─────────────────────────────────────────────────────────────
 
@@ -393,7 +393,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             { _lastBailReason = $"rr_low ({rewardTicks:F1}/{riskTicks:F1}={rewardTicks/riskTicks:F2})"; return RawDecision.None; }
 
             // ── Score ──────────────────────────────────────────────────────────
-            int score = 76;
+            int score = StrategyConfig.Modules.ICE_BASE_SCORE;
 
             // Dual-layer iceberg: both bar-level and tape-level firing simultaneously
             bool dualIceLong  = isLong  && barBullIce && tapeBullIce;
@@ -403,35 +403,35 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             // Alternative iceberg path gets a small penalty vs true iceberg
             bool usedAltIce = isLong ? (!barBullIce && !tapeBullIce && altIceLong)
                                      : (!barBearIce && !tapeBearIce && altIceShort);
-            if (usedAltIce) score -= 2;
+            if (usedAltIce) score -= StrategyConfig.Modules.ICE_PENALTY_ALT_ICE;
 
             // Trapped traders: forced exits from the opposite side fuel the move
-            if (isLong  && snapshot.GetFlag(SnapKeys.TrappedShorts)) score += 5;
-            if (!isLong && snapshot.GetFlag(SnapKeys.TrappedLongs))  score += 5;
+            if (isLong  && snapshot.GetFlag(SnapKeys.TrappedShorts)) score += StrategyConfig.Modules.ICE_BONUS_TRAPPED;
+            if (!isLong && snapshot.GetFlag(SnapKeys.TrappedLongs))  score += StrategyConfig.Modules.ICE_BONUS_TRAPPED;
 
             // CVD divergence agrees with direction (not opposing — veto handled above)
             // BullDiv on long = buyers absorbing at lows, confirming our long thesis
             // BearDiv on short = sellers absorbing at highs, confirming our short thesis
-            if (isLong  && snapshot.GetFlag(SnapKeys.BullDivergence)) score += 5;
-            if (!isLong && snapshot.GetFlag(SnapKeys.BearDivergence)) score += 5;
+            if (isLong  && snapshot.GetFlag(SnapKeys.BullDivergence)) score += StrategyConfig.Modules.ICE_BONUS_DIVERGENCE;
+            if (!isLong && snapshot.GetFlag(SnapKeys.BearDivergence)) score += StrategyConfig.Modules.ICE_BONUS_DIVERGENCE;
 
             // Both exhaustion detectors agree: bar-level AND 3-bar delta trend
             bool dualExhLong  = isLong  && barLevelBearExh && deltaBearExh;
             bool dualExhShort = !isLong && barLevelBullExh && deltaBullExh;
-            if (dualExhLong || dualExhShort) score += 4;
+            if (dualExhLong || dualExhShort) score += StrategyConfig.Modules.ICE_BONUS_DUAL_EXH;
 
             // High absorption: exceptionally strong institutional wall
-            if (absScore >= HIGH_ABSORPTION_SCORE) score += 3;
+            if (absScore >= StrategyConfig.Modules.ICE_HIGH_ABSORPTION_SCORE) score += StrategyConfig.Modules.ICE_BONUS_HIGH_ABS;
 
             // Exhaustion happened AT a known imbalance zone — structural confluence
-            if (isLong  && snapshot.GetFlag(SnapKeys.ImbalZoneAtBull)) score += 3;
-            if (!isLong && snapshot.GetFlag(SnapKeys.ImbalZoneAtBear)) score += 3;
+            if (isLong  && snapshot.GetFlag(SnapKeys.ImbalZoneAtBull)) score += StrategyConfig.Modules.ICE_BONUS_ZONE_OVERLAP;
+            if (!isLong && snapshot.GetFlag(SnapKeys.ImbalZoneAtBear)) score += StrategyConfig.Modules.ICE_BONUS_ZONE_OVERLAP;
 
             // Unfinished auction: magnetic target overhead/below drawing price away
-            if (isLong  && snapshot.GetFlag(SnapKeys.UnfinishedTop))    score += 3;
-            if (!isLong && snapshot.GetFlag(SnapKeys.UnfinishedBottom)) score += 3;
+            if (isLong  && snapshot.GetFlag(SnapKeys.UnfinishedTop))    score += StrategyConfig.Modules.ICE_BONUS_UNFINISHED;
+            if (!isLong && snapshot.GetFlag(SnapKeys.UnfinishedBottom)) score += StrategyConfig.Modules.ICE_BONUS_UNFINISHED;
 
-            score = Math.Min(score, 92);
+            score = Math.Min(score, StrategyConfig.Modules.ICE_SCORE_CAP);
 
             // ── Build decision ─────────────────────────────────────────────────
             _lastBailReason = "FIRED_" + (isLong ? "LONG" : "SHORT");

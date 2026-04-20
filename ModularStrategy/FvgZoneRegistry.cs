@@ -13,8 +13,8 @@ namespace NinjaTrader.NinjaScript.Strategies
     /// </summary>
     public sealed class FvgZoneRegistry
     {
-        private const int MAX_ZONES = 4;
-        private const double MIN_GAP_ATR = 0.15; // minimum gap size as fraction of ATR
+        private const int MAX_ZONES = StrategyConfig.Modules.FVG_MAX_ZONES;
+        private const double MIN_GAP_ATR = StrategyConfig.Modules.FVG_MIN_GAP_ATR; // minimum gap size as fraction of ATR
 
         private readonly FvgZone[] _bullZones = new FvgZone[MAX_ZONES];
         private readonly FvgZone[] _bearZones = new FvgZone[MAX_ZONES];
