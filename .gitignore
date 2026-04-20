@@ -2,6 +2,7 @@
 .claude/
 .claude-flow/
 .swarm/
+.Analysis/__pycache__
 backtest/
 *.csv
 CLAUDE.md

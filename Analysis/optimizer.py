@@ -53,7 +53,7 @@ _GNM_RE  = re.compile(r':(\d+)(?::REJ)?$')
 REPORT_LINES = []
 
 def log(msg=""):
-    print(msg)
+    print(msg)``
     REPORT_LINES.append(msg)
 
 
