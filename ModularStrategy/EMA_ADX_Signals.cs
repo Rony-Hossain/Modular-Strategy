@@ -148,22 +148,21 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
             bool isLong = (cross == EMACross.Bullish);
 
-            // ── Context gates ─────────────────────────────────────────────
-            // Gate 1: SMF regime must agree (or be undefined — neutral regime OK)
-            int regime = (int)snapshot.Get(SnapKeys.Regime);
-            if (isLong  && regime < 0) return RawDecision.None;  // bearish regime: no long cross
-            if (!isLong && regime > 0) return RawDecision.None;  // bullish regime: no short cross
+            // ── Score & Context Gates (Softened) ──────────────────────────
+            int score = 60;
+            double atr = snapshot.ATR > 0 ? snapshot.ATR : _tickSize * 10;
 
-            // Gate 2: VWAP side must agree
+            // Gate 1: SMF regime agreement (Soft Penalty)
+            int regime = (int)snapshot.Get(SnapKeys.Regime);
+            if (isLong  && regime < 0) score -= 12; // counter-regime penalty
+            if (!isLong && regime > 0) score -= 12;
+
+            // Gate 2: VWAP side agreement (Soft Penalty)
             if (snapshot.VWAP > 0)
             {
-                if (isLong  && p.Close < snapshot.VWAP) return RawDecision.None;
-                if (!isLong && p.Close > snapshot.VWAP) return RawDecision.None;
+                if (isLong  && p.Close < snapshot.VWAP) score -= 10; // wrong-side VWAP penalty
+                if (!isLong && p.Close > snapshot.VWAP) score -= 10;
             }
-
-            // ── Score ─────────────────────────────────────────────────────
-            double atr = snapshot.ATR > 0 ? snapshot.ATR : _tickSize * 10;
-            int score = 60;
 
             // EMA separation — wide cross = stronger momentum
             double emaSep = Math.Abs(_ema9Now - _ema21Now);

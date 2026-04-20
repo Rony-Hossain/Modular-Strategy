@@ -63,10 +63,10 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (!fvg.IsValid || fvg.IsFilled) return RawDecision.None;
             if (p.CurrentBar - fvg.CreatedBar > MAX_AGE_BARS) { fvg = FairValueGap.Empty; return RawDecision.None; }
             if (!(p.Low <= fvg.Upper && p.Close >= fvg.Lower)) return RawDecision.None;
-            if (p.Close < (p.High + p.Low) / 2.0) return RawDecision.None;
-            if (p.Low <= fvg.Lower) fvg.IsFilled = true;
-
             int score = Math.Min(100, 55 + (fvg.Size >= atr * 0.5 ? 5 : 0));
+            if (p.Close < (p.High + p.Low) / 2.0) score -= 8; // Soft Penalty instead of hard block
+            
+            if (p.Low <= fvg.Lower) fvg.IsFilled = true;
 
             double stop = Math.Min(fvg.Lower - 2 * _tickSize, p.Close - 1.0 * atr);
             return new RawDecision
@@ -87,10 +87,10 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (!fvg.IsValid || fvg.IsFilled) return RawDecision.None;
             if (p.CurrentBar - fvg.CreatedBar > MAX_AGE_BARS) { fvg = FairValueGap.Empty; return RawDecision.None; }
             if (!(p.High >= fvg.Lower && p.Close <= fvg.Upper)) return RawDecision.None;
-            if (p.Close > (p.High + p.Low) / 2.0) return RawDecision.None;
-            if (p.High >= fvg.Upper) fvg.IsFilled = true;
-
             int score = Math.Min(100, 55 + (fvg.Size >= atr * 0.5 ? 5 : 0));
+            if (p.Close > (p.High + p.Low) / 2.0) score -= 8; // Soft Penalty
+            
+            if (p.High >= fvg.Upper) fvg.IsFilled = true;
 
             double stop = Math.Max(fvg.Upper + 2 * _tickSize, p.Close + 1.0 * atr);
             return new RawDecision
@@ -197,16 +197,16 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (snapshot.Tokyo.IsValid && snapshot.Tokyo.High > 0)
             {
                 if (!_aHiSwept && p.High > snapshot.Tokyo.High + _tickSize)
-                { _aHiSwept = true; if (p.Close < snapshot.Tokyo.High && p.Close < (p.High + p.Low) / 2.0) return Bld(false, p, snapshot, atr, snapshot.Tokyo.High, "AsiaSweepHigh"); }
+                { _aHiSwept = true; if (p.Close < snapshot.Tokyo.High ) return Bld(false, p, snapshot, atr, snapshot.Tokyo.High, "AsiaSweepHigh"); }
                 if (!_aLoSwept && p.Low < snapshot.Tokyo.Low - _tickSize)
-                { _aLoSwept = true; if (p.Close > snapshot.Tokyo.Low && p.Close > (p.High + p.Low) / 2.0) return Bld(true, p, snapshot, atr, snapshot.Tokyo.Low, "AsiaSweepLow"); }
+                { _aLoSwept = true; if (p.Close > snapshot.Tokyo.Low ) return Bld(true, p, snapshot, atr, snapshot.Tokyo.Low, "AsiaSweepLow"); }
             }
             if (snapshot.London.IsValid && snapshot.London.High > 0)
             {
                 if (!_lHiSwept && p.High > snapshot.London.High + _tickSize)
-                { _lHiSwept = true; if (p.Close < snapshot.London.High && p.Close < (p.High + p.Low) / 2.0) return Bld(false, p, snapshot, atr, snapshot.London.High, "LondonSweepHigh"); }
+                { _lHiSwept = true; if (p.Close < snapshot.London.High ) return Bld(false, p, snapshot, atr, snapshot.London.High, "LondonSweepHigh"); }
                 if (!_lLoSwept && p.Low < snapshot.London.Low - _tickSize)
-                { _lLoSwept = true; if (p.Close > snapshot.London.Low && p.Close > (p.High + p.Low) / 2.0) return Bld(true, p, snapshot, atr, snapshot.London.Low, "LondonSweepLow"); }
+                { _lLoSwept = true; if (p.Close > snapshot.London.Low ) return Bld(true, p, snapshot, atr, snapshot.London.Low, "LondonSweepLow"); }
             }
             return RawDecision.None;
         }
@@ -214,6 +214,9 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         private RawDecision Bld(bool isLong, BarSnapshot p, MarketSnapshot snap, double atr, double level, string label)
         {
             int score = 58;
+            double barMid = (p.High + p.Low) / 2.0;
+            if (isLong && p.Close < barMid) score -= 8;
+            if (!isLong && p.Close > barMid) score -= 8;
 
             double stop = isLong
                 ? Math.Min(p.Low - 2 * _tickSize, p.Close - 1.0 * atr)

@@ -423,23 +423,13 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (isLong  && stop >= entry) stop = entry - ts * 4;
             if (!isLong && stop <= entry) stop = entry + ts * 4;
 
+            int score = 80;
             double risk = Math.Abs(entry - stop);
             double rew  = Math.Abs(t1    - entry);
-            if (risk > 0 && rew / risk < 1.2)
-            { 
-                _bail = $"rr_low ({rew/risk:F2})"; 
-                return new RawDecision
-                {
-                    Direction = isLong ? SignalDirection.Long : SignalDirection.Short,
-                    Source = SignalSource.SMF_Impulse,
-                    ConditionSetId = SetId,
-                    EntryPrice = entry,
-                    Label = "REJ:SMF RR",
-                    IsValid = false
-                };
+            if (risk > 0 && rew / risk < 1.2) { 
+                _bail = $"rr_penalty ({rew/risk:F2})"; 
+                score -= 10; // Soft penalty for low RR
             }
-
-            int score = 80;
             if (_e.NonConfLong || _e.NonConfShort) score -= 5;
             score = Math.Min(score, 90);
 

@@ -331,23 +331,10 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             }
 
             double absScore = snapshot.Get(SnapKeys.AbsorptionScore);
-            if (absScore < MIN_ABSORPTION_SCORE)
-            { 
-                _lastBailReason = $"absorption_low ({absScore:F1}<{MIN_ABSORPTION_SCORE})"; 
-                return new RawDecision { Direction = _armedDirection, Label = "REJ:Hybrid Absorp", IsValid = false };
-            }
+            bool lowAbs = absScore < MIN_ABSORPTION_SCORE; // Will penalize in score section
 
             double barMid = (p.High + p.Low) / 2.0;
-            if (isLong  && p.Close <= barMid)
-            { 
-                _lastBailReason = $"close_weak_long (C={p.Close:F2} mid={barMid:F2})"; 
-                return new RawDecision { Direction = _armedDirection, Label = "REJ:Hybrid WeakClose", IsValid = false };
-            }
-            if (!isLong && p.Close >= barMid)
-            { 
-                _lastBailReason = $"close_weak_short (C={p.Close:F2} mid={barMid:F2})"; 
-                return new RawDecision { Direction = _armedDirection, Label = "REJ:Hybrid WeakClose", IsValid = false };
-            }
+            bool weakClose = (isLong && p.Close <= barMid) || (!isLong && p.Close >= barMid);
 
             // ── Hard vetoes ────────────────────────────────────────────────────
             if (isLong  && snapshot.GetFlag(SnapKeys.SellSweep))
@@ -467,15 +454,15 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
                 }
             }
 
-            // ── RR gate: minimum 1.2:1 ────────────────────────────────────────
+            // ── RR & Scoring (Softened) ───────────────────────────────────────
             double riskTicks   = Math.Abs(p.Close - stopPrice) / tickSz;
             double rewardTicks = Math.Abs(t1Price  - p.Close)  / tickSz;
-            if (riskTicks > 0 && rewardTicks / riskTicks < 1.2)
-            { _lastBailReason = $"rr_low ({rewardTicks:F1}/{riskTicks:F1}={rewardTicks/riskTicks:F2})";
-              return RawDecision.None; }
+            bool lowRR = (riskTicks > 0 && rewardTicks / riskTicks < 1.2);
 
-            // ── Score ──────────────────────────────────────────────────────────
             int score = 80;
+            if (lowAbs)    score -= 5;
+            if (weakClose) score -= 8;
+            if (lowRR)     score -= 10;
 
             // CVD divergence agrees: price pulled back while buyers absorbing at lows.
             // This is the triple-layer setup: structure + zone + divergence.
