@@ -1,0 +1,171 @@
+Loading data ...
+  1005 trades  W=445  L=560
+
+======================================================================
+  1. SCORE VS WIN RATE  â€” is score actually predictive?
+======================================================================
+
+         SCORE      W      L    WIN%         NET  NOTE
+      (55, 60]     17     28   37.8%  $   4,546  
+      (60, 65]    161    219   42.4%  $  -4,902  
+      (65, 70]     33     66   33.3%  $  -1,508  <-- DROPS (weight inflation?)
+      (70, 75]     13     21   38.2%  $  -6,383  
+      (75, 80]      4     13   23.5%  $  -4,103  <-- DROPS (weight inflation?)
+      (80, 85]    214    209   50.6%  $  -1,818  <-- JUMPS
+      (85, 90]      2      4   33.3%  $     -70  <-- DROPS (weight inflation?)
+     (95, 100]      1      0  100.0%  $     910  <-- JUMPS
+
+======================================================================
+  2. LAYER CONTRIBUTION  â€” which layer adds score to losers?
+======================================================================
+  FEATURE                   WINNERS     LOSERS       DIFF
+  ------------------------------------------------------
+  score_unexplained          57.589     54.252     +3.337
+  score                      74.681     72.896     +1.784
+  layers_sum                 17.092     18.645     -1.553
+  layer_a                     8.989      9.732     -0.743
+  layer_d                     3.110      3.550     -0.440
+  layer_c                     4.993      5.362     -0.369
+
+  KEY QUESTION: does layers_sum predict outcome better than score?
+    AUC(score                 ): 0.535
+    AUC(layers_sum            ): 0.476
+    AUC(layer_a               ): 0.477
+    AUC(layer_c               ): 0.479
+    AUC(layer_d               ): 0.479
+
+======================================================================
+  3. H4 DEEP DIVE  â€” why does H4 alignment give zero edge?
+======================================================================
+
+  Distribution of snap_h4 values:
+    snap_h4=-1.0  count= 156  (15.5%)
+    snap_h4=+0.0  count=   3  (0.3%)
+    snap_h4=+1.0  count= 318  (31.6%)
+
+  H4 alignment breakdown by direction:
+    H4 Aligned (trade WITH H4)         : n= 296  win%=43.9%  net=$97
+    H4 Against (trade vs H4)           : n= 706  win%=44.6%  net=$-12,597
+    H4 Neutral (H4=0)                  : n=   3  win%=0.0%  net=$-828
+
+  H4=0 breakdown â€” what direction is the trade?
+    H4=0 + Short   : n=   3  win%=0.0%  avg_score=68.3
+
+  H4 layer score added vs outcome:
+    layer_a=0  n= 562  win%=47.2%  net=$9,884
+    layer_a=6  n=  54  win%=42.6%  net=$-2,751
+    layer_a=14  n=  46  win%=34.8%  net=$-2,636
+    layer_a=16  n=  85  win%=31.8%  net=$-15,731
+    layer_a=20  n=  11  win%=36.4%  net=$-1,026
+    layer_a=24  n=  58  win%=50.0%  net=$3,775
+    layer_a=30  n= 181  win%=44.8%  net=$-17
+
+======================================================================
+  4. CONFLUENCE FORENSICS  â€” why 38% win rate?
+======================================================================
+
+  Confluence: 160 trades  W=61  L=99  win%=38.1%
+
+  Confluence W vs L  (W=61  L=99)
+  FEATURE                   WINNERS     LOSERS       DIFF
+  ------------------------------------------------------
+  s_sw                     3343.500   2498.741   +844.759
+  s_cd                      -36.211   -498.296   +462.086
+  s_bd                      -45.263    -55.519    +10.255
+  layer_a                    14.393     11.798     +2.595
+  layer_c                     8.148      6.020     +2.127
+  layer_d                     5.049      3.232     +1.817
+  score                      67.410     68.192     -0.782
+  s_atr                      24.658     25.328     -0.669
+  s_abs                       2.279      2.013     +0.266
+  s_h1                       -0.368     -0.630     +0.261
+  s_h2                       -0.368     -0.481     +0.113
+  s_h4                        0.053      0.000     +0.053
+  s_berdiv                    0.053      0.000     +0.053
+  s_bdiv                      0.053      0.000     +0.053
+  s_dex                       0.000     -0.019     +0.019
+  s_trd                      -1.000     -1.000     +0.000
+  s_str                       0.000      0.000     +0.000
+  s_reg                       0.000      0.000     +0.000
+
+  Confluence â€” H4 alignment breakdown:
+    H4 Aligned          : n=  55  win%=45.5%  avg_score=68.3
+    H4 Against          : n= 103  win%=35.0%  avg_score=67.7
+    H4 Neutral          : n=   2  win%=0.0%  avg_score=70.0
+
+  Confluence â€” gate reasons on LOSSES (what score criteria was close?):
+      99x  
+
+  Confluence â€” direction breakdown:
+    Long      : n=  56  win%=41.1%  net=$-2,284  avg_score=70.1
+    Short     : n= 104  win%=36.5%  net=$-13,692  avg_score=66.7
+
+======================================================================
+  5. SMF_IMPULSE FORENSICS  â€” why 34.8% win rate?
+======================================================================
+
+  SMF_Impulse: 158 trades  W=55  L=103  win%=34.8%
+
+  SMF_Impulse W vs L  (W=55  L=103)
+  FEATURE                   WINNERS     LOSERS       DIFF
+  ------------------------------------------------------
+  s_cd                      165.821    591.035   -425.214
+  s_sw                     2459.679   2842.754   -383.076
+  s_bd                        4.429     30.088    -25.659
+  bars_to_hit                 7.291      3.583     +3.708
+  layer_a                     7.745      8.718     -0.973
+  s_atr                      18.361     17.405     +0.957
+  layer_c                     5.091      5.951     -0.861
+  layer_d                     2.909      3.573     -0.664
+  s_h2                        0.429      0.053     +0.376
+  s_abs                       1.789      2.158     -0.369
+  s_h1                       -0.214     -0.018     -0.197
+  score                      65.255     65.340     -0.085
+  s_bdiv                      0.000      0.070     -0.070
+  s_h4                        0.714      0.737     -0.023
+  s_trd                      -1.000     -1.000     +0.000
+  s_str                       0.000      0.000     +0.000
+  s_reg                       0.000      0.000     +0.000
+  s_dex                       0.000      0.000     +0.000
+  s_berdiv                    0.000      0.000     +0.000
+
+  SMF_Impulse â€” H4 alignment breakdown:
+    H4 Aligned          : n=  59  win%=30.5%  net=$-2,943
+    H4 Against          : n=  98  win%=37.8%  net=$-1,019
+    H4 Neutral          : n=   1  win%=0.0%  net=$-272
+
+  SMF_Impulse â€” bars_to_hit distribution (winners vs losers):
+    WIN: mean=7.3  median=4  p25=3  p75=7
+    LOSS: mean=3.6  median=2  p25=1  p75=4
+
+  SMF_Impulse â€” entry vs T1 distance (RR ratio):
+    WIN: avg_RR=1.51  avg_entry=25374.87  avg_stop_dist=20.4
+    LOSS: avg_RR=1.70  avg_entry=25362.85  avg_stop_dist=17.6
+
+======================================================================
+  6. SCORE VS PNL MAGNITUDE  â€” does high score = bigger wins?
+======================================================================
+Traceback (most recent call last):
+  File "D:\Ninjatrader-Modular-Startegy\Analysis\score_forensics.py", line 395, in <module>
+    main()
+    ~~~~^^
+  File "D:\Ninjatrader-Modular-Startegy\Analysis\score_forensics.py", line 347, in main
+    df['score_q'] = pd.qcut(df['score'], q=5, labels=['Q1','Q2','Q3','Q4','Q5'],
+                    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                             duplicates='drop')
+                             ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\moham\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\reshape\tile.py", line 384, in qcut
+    fac, bins = _bins_to_cuts(
+                ~~~~~~~~~~~~~^
+        x_idx,
+        ^^^^^^
+    ...<4 lines>...
+        duplicates=duplicates,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\moham\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\reshape\tile.py", line 536, in _bins_to_cuts
+    raise ValueError(
+        "Bin labels must be one fewer than the number of bin edges"
+    )
+ValueError: Bin labels must be one fewer than the number of bin edges

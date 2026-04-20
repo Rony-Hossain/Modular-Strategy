@@ -1,0 +1,163 @@
+============================================================
+STRATEGY OPTIMIZER  —  2026-04-20 01:20
+============================================================
+Loading ..\backtest\Log.csv ...
+  SIGNAL_ACCEPTED: 795  SIGNAL_REJECTED: 444  TOUCH_OUTCOME: 2036
+  Parsed 2036 outcome rows  (1027 wins / 1009 losses)  win%=50.4%
+  Accepted: 1592  Rejected (simulated): 444
+  Net simulated PnL (all): $40,664  (accepted only): $33,302
+
+============================================================
+PHASE 2 — ML Feature Importance
+============================================================
+  Random Forest CV AUC: 0.635 +/- 0.014
+
+  Feature Importances (top 10):
+  Feature             Importance  Direction
+  snap_SW                 0.1605  -> WIN  (corr=+0.051)
+  snap_ATR                0.1403  neutral  (corr=-0.015)
+  snap_BD                 0.1326  neutral  (corr=-0.018)
+  snap_CD                 0.1307  neutral  (corr=+0.012)
+  snap_ABS                0.1122  neutral  (corr=+0.014)
+  snap_SBEAR              0.0597  <- LOSS  (corr=-0.051)
+  snap_SBULL              0.0497  neutral  (corr=-0.037)
+  snap_DEX                0.0315  -> WIN  (corr=+0.074)
+  cd_aligned              0.0247  neutral  (corr=+0.012)
+  snap_TRD                0.0183  neutral  (corr=+0.035)
+
+  GradientBoosting CV AUC: 0.620 +/- 0.019
+
+  Per-Source Performance:
+  Source                        N   Win%   AvgPnL   AvgMFE   AvgMAE       EV
+  ADX_TrendSignal              54  46.3%     15.9      631      702      857
+  Confluence                  163  37.4%    -92.6      575      635   -15101
+  EMA_CrossSignal              13  53.8%    363.1      994      625     4720
+  FailedAuction                39  35.9%     70.5      521      302     2751
+  ORB_Retest                  420  50.5%     -3.1      516      563    -1314
+  ORB_Value_v2                587  56.2%     80.6      573      512    47290
+  OrderFlow_Abs                12  33.3%      1.0      365      354       12
+  OrderFlow_Delta               1   0.0%   -208.7      180      240     -209
+  SMC_OrderBlock               13  46.2%     81.9      579      557     1064
+  SMF_Impulse                 148  32.4%    -31.8      358      427    -4712
+  SMF_Retest                  101  42.6%     -9.6      493      460     -965
+  VWAP_Reclaim                 41  39.0%    -26.6      721      666    -1091
+
+============================================================
+PHASE 3 — Score Threshold Optimization (Optuna)
+============================================================
+  Baseline (threshold=60, all accepted): n=1592  PnL=$33,302  win=48.1%  Sharpe=0.49  MaxDD=$28,844
+
+  Optimized result:
+    Global threshold  : 80
+    Require H4 aligned: True
+    Per-source thresholds:
+      ADX_TrendSignal          : 83
+      Confluence               : 87
+      EMA_CrossSignal          : 61
+      FailedAuction            : 80
+      ORB_Retest               : 58
+      ORB_Value_v2             : 94
+      OrderFlow_Abs            : 88
+      OrderFlow_Delta          : 53
+      SMC_BOS                  : 90
+      SMC_IB_Retest            : 51
+      SMC_OrderBlock           : 52
+      SMF_Impulse              : 70
+      SMF_Retest               : 91
+      VWAP_Reclaim             : 72
+
+    n=352  PnL=$19,222  win=53.1%  Sharpe=1.31  MaxDD=$13,323
+
+    PnL improvement vs baseline: $-14,080
+
+============================================================
+PHASE 4 — Confluence Weight Optimization
+============================================================
+
+  Best confluence weights:
+    LAYER_A_H1                  : 4
+    LAYER_A_H2                  : 13
+    LAYER_A_H4                  : 19
+    LAYER_C_ABS_MAX             : 11
+    LAYER_C_DIVERGENCE          : 20
+    LAYER_D_FULL_STRUCT         : 17
+    LAYER_D_TREND_ONLY          : 11
+    PENALTY_BOTH_EXTRA          : 8
+    PENALTY_H2                  : 2
+    PENALTY_H4                  : 9
+    PROXY_BAR_DELTA             : 12
+    PROXY_REGIME                : 7
+    reject_thresh               : 75
+
+  Result: n=30  PnL=$10,081  win=70.0%  Sharpe=7.34
+
+============================================================
+PHASE 5 — Monte Carlo Stress Tests
+============================================================
+  Trade sample: 1592 accepted trades  total PnL=$33,302
+
+  Equity (final) distribution (5,000 simulations):
+    P 5: $   -10,001
+    P25: $    15,705
+    P50: $    33,588
+    P75: $    52,045
+    P95: $    77,481
+    Mean: $    33,804   Std: $    26,633
+
+  Probability of ruin (equity < -$1,000): 9.5%
+
+  Max Drawdown distribution:
+    P50: $  20,698
+    P75: $  26,614
+    P90: $  33,753
+    P95: $  39,041
+    P99: $  49,987
+
+  Sharpe distribution: P25=0.23  P50=0.50  P75=0.77
+
+  Win-Rate Sensitivity (fixed trade PnL magnitudes, vary win%):
+    Win%    Avg PnL   Sharpe    Total PnL
+     35%     -154.0    -4.33     -245,137
+     40%      -54.9    -1.48      -87,395
+     45%      -12.9    -0.34      -20,474
+     48%       26.9     0.72       42,862
+     50%       31.4     0.84       50,032
+     55%       87.0     2.32      138,464
+     60%      158.3     4.29      251,991
+
+  Consecutive Loss Streak Analysis (from actual sequence):
+    Max observed streak: 20
+    Expected max streak (theory): 11.2
+
+============================================================
+SUMMARY & RECOMMENDATIONS
+============================================================
+  Ruin probability      : 9.5%
+  Median final equity   : $33,588
+  P90 max drawdown      : $33,753
+  Median Sharpe         : 0.50
+
+  Threshold optimized PnL improvement: $-14,080
+  Recommended SCORE_REJECT: 80
+
+  Weakest sources (by avg PnL of accepted trades):
+    OrderFlow_Delta          : win=0.0%  avg=$-208.7  consider raising threshold or removing
+    Confluence               : win=37.4%  avg=$-92.6  consider raising threshold or removing
+    SMF_Impulse              : win=32.4%  avg=$-31.8  consider raising threshold or removing
+
+  Strongest sources:
+    EMA_CrossSignal          : win=53.8%  avg=$363.1  keep/lower threshold
+    SMC_OrderBlock           : win=46.2%  avg=$81.9  keep/lower threshold
+    ORB_Value_v2             : win=56.2%  avg=$80.6  keep/lower threshold
+
+============================================================
+PHASE 6 — Writing optimized config to strategy_config.py
+============================================================
+  Written to D:\Ninjatrader-Modular-Startegy\Analysis\strategy_config.py
+  Key changes:
+    SCORE_REJECT        : 80
+    REQUIRE_H4_ALIGNED  : True
+    LAYER_A_H4                  : 19
+    PENALTY_H4                  : 9
+    LAYER_C_DIVERGENCE          : 20
+    LAYER_D_FULL_STRUCT         : 17

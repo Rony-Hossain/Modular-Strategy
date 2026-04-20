@@ -1,0 +1,202 @@
+Loading data ...
+  1005 trades  W=445  L=560
+
+
+========================================================================
+  A. LAYER A DISSECTION — which H4/H2/H1 combo is the problem?
+========================================================================
+
+  First: how many trades even have H4/H2/H1 data?
+    s_h4: has_data= 474 (47%)  zero=   3  nan= 528
+    s_h2: has_data= 477 (47%)  zero=   0  nan= 528
+    s_h1: has_data= 477 (47%)  zero=   0  nan= 528
+
+  Win rate by H4 value (direction-adjusted: +1=aligned, -1=against):
+  H4=-1 (against)                     n= 156  win%= 41.0%  net=$   -6,245  #############
+  H4=+0 (neutral)                     n=   3  win%=  0.0%  net=$     -828  
+  H4=+1 (aligned)                     n= 318  win%= 39.9%  net=$  -17,300  #############
+  H4=NaN (missing)                    n= 528  win%= 48.1%  net=$   11,045  ################
+
+  Win rate for ALL 8 combinations of H4/H2/H1 alignment:
+     H4    H2    H1      n    WIN%         NET  NOTE
+  H4=AL H2=AL H1=AG  n=  33  win%= 48.5%  $   4,072  
+  H4=AG H2=AG H1=AL  n=  79  win%= 45.6%  $  -3,047  
+  H4=AL H2=AL H1=AL  n=  92  win%= 43.5%  $  -1,381  
+  H4=AL H2=AL H1=AL  n= 123  win%= 42.3%  $     204  
+  H4=AG H2=AL H1=AL  n= 106  win%= 34.9%  $  -9,991  <-- PROBLEM
+  H4=AL H2=AG H1=AL  n=   7  win%= 28.6%  $    -802  <-- PROBLEM
+  H4=AL H2=AG H1=AG  n=  24  win%= 25.0%  $  -8,133  <-- PROBLEM
+  H4=AL H2=AG H1=AL  n=  10  win%= 20.0%  $  -4,465  <-- PROBLEM
+
+  Key insight — trades with NO H4/H2/H1 data at all:
+  No MTFA data                        n= 528  win%= 48.1%  net=$   11,045  ################
+  Has MTFA data                       n= 477  win%= 40.0%  net=$  -24,373  #############
+
+========================================================================
+  B. SCORE COMPOSITION — Layer B (S/R) is carrying the whole score
+========================================================================
+
+  Average score decomposition:
+    Score (total)              W=  74.7  L=  72.9  diff= +1.78  +
+    Layer A (MTFA)             W=   9.0  L=   9.7  diff= -0.74  -
+    Layer C (OrderFlow)        W=   4.8  L=   5.0  diff= -0.20  -
+    Layer D (Structure)        W=   3.1  L=   3.5  diff= -0.44  -
+    Layers A+C+D sum           W=  16.9  L=  18.3  diff= -1.38  -
+    Layer B est (S/R)          W=  57.8  L=  54.6  diff= +3.17  +
+
+  Layer B estimate (S/R score) buckets vs win rate:
+  (0, 40]              n= 291  win%= 42.3%  net=$   -2,661  ##############
+  (40, 50]             n= 113  win%= 35.4%  net=$  -14,719  ###########
+  (50, 55]             n=  39  win%= 41.0%  net=$   -1,999  #############
+  (55, 60]             n=  31  win%= 48.4%  net=$    2,970  ################
+  (60, 65]             n= 194  win%= 43.3%  net=$     -781  ##############
+  (65, 70]             n=  50  win%= 38.0%  net=$   -2,071  ############
+  (70, 100]            n= 286  win%= 51.4%  net=$    4,544  #################
+
+========================================================================
+  C. CONFLUENCE DEEP DIVE — CumDelta is the key separator
+========================================================================
+
+  Confluence: 160 trades  W=61  L=99
+
+  CumDelta (s_cd) distribution by outcome:
+    Winners: mean=     -36  median=    -228  p25=   -1035  p75=     472  std=    1914
+    Losers: mean=    -498  median=    -216  p25=   -1089  p75=     187  std=    1541
+
+  Confluence win rate by CumDelta range:
+  CD <-500                            n=  34  win%= 41.2%  net=$   -5,346  #############
+  CD -500:-300                        n=   9  win%= 55.6%  net=$    3,937  ##################
+  CD -300:-100                        n=   6  win%= 16.7%  net=$   -1,971  #####
+  CD -100:0                           n=   6  win%= 50.0%  net=$      694  ################
+  CD 0:100                            n=   3  win%=  0.0%  net=$   -1,866  
+  CD 100:300                          n=  13  win%= 38.5%  net=$     -888  ############
+  CD >500                             n=  19  win%= 52.6%  net=$     -113  #################
+
+  Confluence win rate by DIRECTION-adjusted CD (positive = momentum in trade dir):
+  CD_dir <-500                        n=  13  win%= 38.5%  net=$   -1,635  ############
+  CD_dir -500:-200                    n=   5  win%= 20.0%  net=$     -476  ######
+  CD_dir -200:-50                     n=   9  win%= 22.2%  net=$   -3,584  #######
+  CD_dir 0:50                         n=   5  win%= 60.0%  net=$      803  ####################
+  CD_dir 50:200                       n=   5  win%= 40.0%  net=$      678  #############
+  CD_dir 200:500                      n=  14  win%= 42.9%  net=$    2,015  ##############
+  CD_dir >500                         n=  40  win%= 47.5%  net=$   -3,824  ###############
+
+  Confluence by SHORT/LONG breakdown:
+    Long    : n=  56  win%=41.1%  net=$-2,284  avg_CD=981  avg_score=70.1
+    Short   : n= 104  win%=36.5%  net=$-13,692  avg_CD=-519  avg_score=66.7
+
+  Confluence SHORT detailed — where does it WIN?
+  (Shorts need NEGATIVE CD = bearish momentum, or near-zero = mean reversion)
+  CD < -300  (strong bear)            n=  41  win%= 46.3%  net=$     -155  ###############
+  CD -300:-100                        n=   6  win%= 16.7%  net=$   -1,971  #####
+  CD -100:+100 (near zero)            n=   9  win%= 33.3%  net=$   -1,172  ###########
+  CD > +100  (bull CD)                n=  23  win%= 34.8%  net=$   -2,919  ###########
+
+  Confluence — BarDelta vs outcome for SHORTS:
+  BD < -20  (strong bear bar)         n=  51  win%= 41.2%  net=$   -3,141  #############
+  BD -20:0                            n=  28  win%= 35.7%  net=$   -3,076  ###########
+
+  Confluence — swing strength (s_sw) vs outcome:
+  SW 0-2000                           n=  32  win%= 31.2%  net=$   -8,110  ##########
+  SW 2000-2500                        n=   9  win%= 22.2%  net=$   -1,200  #######
+  SW 2500-3000                        n=   3  win%= 66.7%  net=$      738  ######################
+  SW 3000-3500                        n=  11  win%= 27.3%  net=$   -4,572  #########
+  SW 3500-99999                       n=  37  win%= 56.8%  net=$    6,777  ##################
+
+========================================================================
+  D. SMF_IMPULSE DEEP DIVE — entering at momentum peak (too late)
+========================================================================
+
+  SMF_Impulse: 158 trades  W=55  L=103
+
+  The core problem — BD and CD at entry:
+
+    Winners (n=55):
+      s_bd  mean=     4.4  median=   9.0  p75=  28.0
+      s_cd  mean=   165.8  median= 271.5  p75= 795.8
+      s_sw  mean=  2459.7  bars_to_hit=  7.3
+
+    Losers (n=103):
+      s_bd  mean=    30.1  median=  13.0  p75=  49.0
+      s_cd  mean=   591.0  median= 458.0  p75=1250.0
+      s_sw  mean=  2842.8  bars_to_hit=  3.6
+
+  SMF_Impulse win rate by direction-adjusted CumDelta:
+  CD_dir <-300                        n=  35  win%= 34.3%  net=$     -176  ###########
+  CD_dir -300:-100                    n=   7  win%= 28.6%  net=$     -659  #########
+  CD_dir 0:+100                       n=   4  win%= 75.0%  net=$    1,092  #########################
+  CD_dir +100:+300                    n=   4  win%= 25.0%  net=$     -745  ########
+  CD_dir >+300                        n=  34  win%= 29.4%  net=$   -1,756  #########
+
+  SMF_Impulse win rate by direction-adjusted BarDelta:
+  BD_dir -10:0                        n=   3  win%= 33.3%  net=$     -649  ###########
+  BD_dir 0:+10                        n=  16  win%= 25.0%  net=$      200  ########
+  BD_dir +10:+30                      n=  30  win%= 40.0%  net=$    2,082  #############
+  BD_dir >+30                         n=  33  win%= 30.3%  net=$   -4,206  ##########
+
+  SMF_Impulse by DIRECTION:
+    Long    : n=  65  win%=32.3%  net=$-4,171  avg_CD=412  avg_BD=52.6
+    Short   : n=  93  win%=36.6%  net=$-63  avg_CD=501  avg_BD=-18.6
+
+  SMF_Impulse — stop distance vs outcome:
+    Winners: avg_stop=20.4  median=15.5  min=6.6  max=92.2
+    Losers: avg_stop=17.6  median=15.0  min=5.1  max=82.4
+
+========================================================================
+  E. PROPOSED GATE SIMULATION — before vs after
+========================================================================
+
+  Proposed fixes to test:
+    G1. Reduce H4/H2/H1 weights in Layer A  (make them smaller penalties, not big bonuses)
+    G2. Confluence: require abs(s_cd) < 300 AND s_sw > 2500
+    G3. SMF_Impulse: require cd_dir < 200 AND bd_dir < 20
+    G4. Score floor per-source (not one global threshold)
+
+  BASELINE:  n=1005  win%=44.3%  net=$-13,328
+
+  Confluence BEFORE gate: n=160  win%=38.1%  net=$-15,975
+  Confluence PASS  gate:  n=12  win%=50.0%  net=$270
+  Confluence FAIL  gate:  n=148  win%=37.2%  net=$-16,246  (rejected)
+
+  SMF_Impulse BEFORE gate: n=158  win%=34.8%  net=$-4,235
+  SMF_Impulse PASS  gate:  n=20  win%=30.0%  net=$159
+  SMF_Impulse FAIL  gate:  n=138  win%=35.5%  net=$-4,394  (rejected)
+
+  COMBINED AFTER GATES:  n=719  win%=47.4%  net=$7,312
+  Trades removed: 286  PnL change: $+20,639
+
+========================================================================
+  F. WINNER PROFILE — the features of a high-quality setup
+========================================================================
+
+  Profile of TOP 50 WINNERS (by PnL) vs TOP 50 LOSERS:
+  FEATURE                   TOP WIN   TOP LOSS       DIFF
+  ------------------------------------------------------
+  s_sw                      2801.16    2335.21    +465.95
+  s_cd                      -599.44    -435.18    -164.26
+  s_bd                       -41.40     -44.32      +2.92
+  la                          11.32      13.08      -1.76
+  layer_b_est                 50.12      48.40      +1.72
+  lc                           5.60       6.22      -0.62
+  score                       70.40      70.90      -0.50
+  bars_to_hit                  8.40       8.90      -0.50
+  s_h4                        -0.28       0.07      -0.35
+  s_h2                        -0.52      -0.29      -0.23
+  ld                           3.36       3.20      +0.16
+  s_h1                        -0.28      -0.43      +0.15
+  s_abs                        3.08       3.04      +0.03
+
+  SUMMARY — what a real winner looks like:
+    - s_sw  (swing strength)   : higher in winners = strong structure context
+    - s_cd  (CumDelta)         : NEAR ZERO in winners = not chasing momentum
+    - s_bd  (BarDelta)         : LOWER in winners = entry bar not at momentum peak
+    - layer_b_est (S/R score)  : higher in winners = proper S/R location
+    - bars_to_hit              : winners take LONGER to hit T1 = steady move
+
+  The WORST setups:
+    - High s_cd in trade direction = entering after big move (exhaustion)
+    - High s_bd in trade direction = entering on momentum bar (late entry)
+    - Partial MTFA alignment (layer_a=14-16) = conflicting timeframes
+
+  Next step: implement per-signal CD and BD gates in StrategyConfig.cs
+
