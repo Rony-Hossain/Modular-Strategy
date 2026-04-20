@@ -126,7 +126,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
         protected static bool IsRTH(BarSnapshot p)
         {
-            return p.Session != SessionPhase.PreMarket && p.Session != SessionPhase.AfterHours;
+            return true;
         }
     }
 

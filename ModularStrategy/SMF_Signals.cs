@@ -61,8 +61,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
         protected static bool IsRTH(BarSnapshot p)
         {
-            // Simple RTH gate: 9:30 - 16:00 ET
-            return p.Session != SessionPhase.PreMarket && p.Session != SessionPhase.AfterHours;
+            return true;
         }
     }
 

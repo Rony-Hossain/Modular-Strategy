@@ -367,7 +367,32 @@ namespace NinjaTrader.NinjaScript.Strategies
             _log?.SignalRejected(
                 _lastBarTime,
                 _lastDecision.Source, _lastDecision.Direction,
-                _lastDecision.RawScore, reason);
+                _lastDecision.RawScore, reason,
+                _lastDecision.ConditionSetId ?? "", _lastSnapshot);
+
+            // Register rejected signals with the forward-return tracker so we can
+            // measure whether the direction would have worked even though we blocked it.
+            // Uses the theoretical entry/stop/target — no slippage adjustment.
+            // Guard: need a valid signalId, stop, and target; skip stub decisions.
+            if (_log != null
+                && !string.IsNullOrEmpty(_lastDecision.SignalId)
+                && _lastDecision.StopPrice   > 0
+                && _lastDecision.TargetPrice > 0
+                && _lastDecision.IsValid)
+            {
+                _log.Tracker?.Register(
+                    _lastDecision.SignalId + ":REJ",
+                    _lastDecision.ConditionSetId ?? "",
+                    _lastDecision.Direction,
+                    _lastDecision.EntryPrice,
+                    _lastDecision.StopPrice,
+                    _lastDecision.TargetPrice,
+                    _lastSnapshot.Primary.CurrentBar,
+                    _lastBarTime,
+                    _lastSnapshot,
+                    reason);
+            }
+
             return null;
         }
     }

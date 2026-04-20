@@ -59,11 +59,6 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (atr <= 0)
             { _lastBailReason = "atr_zero"; return RawDecision.None; }
 
-            if (p.Session != SessionPhase.EarlySession  &&
-                p.Session != SessionPhase.MidSession    &&
-                p.Session != SessionPhase.LateSession)
-            { _lastBailReason = "session_non_rth"; return RawDecision.None; }
-
             if (_lastFillBar >= 0 && p.CurrentBar - _lastFillBar < REENTRY_COOLDOWN)
             { _lastBailReason = "cooldown"; return RawDecision.None; }
 

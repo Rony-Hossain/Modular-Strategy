@@ -39,6 +39,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private readonly Tick[] _ring;
         private readonly int    _capacity;
         private readonly long   _windowMs;
+        // Tick size for synthetic BBO when real Bid/Ask events are unavailable
+        // (e.g. NT8 backtest only replays Last ticks, never Bid/Ask events).
+        private readonly double _tickSize;
 
         private int  _head;          // next write slot
         private int  _oldest;        // index of oldest live tick
@@ -60,12 +63,20 @@ namespace NinjaTrader.NinjaScript.Strategies
         private SweepDetector       _sweepDetector;
         private TapeIcebergDetector _tapeIcebergDetector;
 
-        public TapeRecorder(int capacity = DEFAULT_CAPACITY, long windowMs = DEFAULT_WINDOW_MS)
+        /// <summary>
+        /// Fired after every classified tick. Receives the original UTC time and the
+        /// fully classified Tick (with Lee-Ready aggressor side). Wire this to the
+        /// logger for persistent tick recording.
+        /// </summary>
+        public Action<DateTime, Tick> OnTickClassified;
+
+        public TapeRecorder(int capacity = DEFAULT_CAPACITY, long windowMs = DEFAULT_WINDOW_MS, double tickSize = 0.25)
         {
             if (capacity <= 0)   throw new ArgumentOutOfRangeException("capacity");
             if (windowMs  <= 0)  throw new ArgumentOutOfRangeException("windowMs");
             _capacity = capacity;
             _windowMs = windowMs;
+            _tickSize = tickSize > 0 ? tickSize : 0.25;
             _ring     = new Tick[capacity];
         }
 
@@ -126,16 +137,30 @@ namespace NinjaTrader.NinjaScript.Strategies
             double useBid = _bboValid ? _preBid : bid;
             double useAsk = _bboValid ? _preAsk : ask;
 
+            // Only apply quote-test when we have a valid, non-zero BBO.
+            // In NT8 backtest, Bid/Ask events are never replayed — useBid/Ask stay
+            // at 0, making price >= 0 always true and misclassifying every tick as Buy.
+            bool hasBbo = useBid > 0 && useAsk > 0 && useBid < useAsk;
+
             Aggressor side;
-            if      (price >= useAsk) side = Aggressor.Buy;
-            else if (price <= useBid) side = Aggressor.Sell;
-            else if (price > _lastTradePrice && _lastTradePrice > 0) side = Aggressor.Buy;
-            else if (price < _lastTradePrice && _lastTradePrice > 0) side = Aggressor.Sell;
-            else if (_lastSide != Aggressor.Unknown)                 side = _lastSide;
-            else                                                     side = Aggressor.Unknown;
+            if      (hasBbo && price >= useAsk)                          side = Aggressor.Buy;
+            else if (hasBbo && price <= useBid)                          side = Aggressor.Sell;
+            else if (price > _lastTradePrice && _lastTradePrice > 0)     side = Aggressor.Buy;
+            else if (price < _lastTradePrice && _lastTradePrice > 0)     side = Aggressor.Sell;
+            else if (_lastSide != Aggressor.Unknown)                     side = _lastSide;
+            else                                                         side = Aggressor.Unknown;
 
             _lastTradePrice = price;
             _lastSide       = side;
+
+            // When real BBO is unavailable (backtest), synthesize a 1-tick spread
+            // from the determined aggressor side so the CSV carries meaningful values.
+            if (!hasBbo)
+            {
+                if      (side == Aggressor.Buy)  { useAsk = price; useBid = price - _tickSize; }
+                else if (side == Aggressor.Sell) { useBid = price; useAsk = price + _tickSize; }
+                else                             { useBid = price - _tickSize; useAsk = price + _tickSize; }
+            }
 
             bid = useBid;
             ask = useAsk;
@@ -162,6 +187,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _oldest = (_oldest + 1) % _capacity;
                 _count--;
             }
+
+            OnTickClassified?.Invoke(timeUtc, tick);
 
             _bigPrintDetector?.OnTick(in tick);
             _velocityDetector?.OnTick(in tick);

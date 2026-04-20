@@ -1,5 +1,6 @@
 #region Using declarations
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using NinjaTrader.NinjaScript;
@@ -66,21 +67,31 @@ namespace NinjaTrader.NinjaScript.Strategies
         private double _sessionPnL;
 
         // ── Bar context: pre/post signal candlestick capture ────────────────
-        // Stores the bar index when the last signal was accepted so we can
-        // emit the next 5 primary bars as a BAR_FORWARD row once they close.
-        private int      _contextSignalBar  = -1;
-        private int      _contextBarsLogged = 0;
-        private const int CONTEXT_BARS      = 5;
-        // Pre-allocated forward bar buffer — 5 bars × 7 fields (T,O,H,L,C,V,D)
-        // Written incrementally as bars close after signal.
-        private readonly double[] _fwdO = new double[CONTEXT_BARS];
-        private readonly double[] _fwdH = new double[CONTEXT_BARS];
-        private readonly double[] _fwdL = new double[CONTEXT_BARS];
-        private readonly double[] _fwdC = new double[CONTEXT_BARS];
-        private readonly double[] _fwdV = new double[CONTEXT_BARS];
-        private readonly double[] _fwdD = new double[CONTEXT_BARS];
-        private readonly DateTime[] _fwdT = new DateTime[CONTEXT_BARS];
-        private string _contextSignalId = "";
+        // Each signal (accepted or rejected) gets its own PendingForward entry
+        // so 5-bar forward captures are independent per condition set.
+        private const int CONTEXT_BARS = 5;
+
+        private sealed class PendingForward
+        {
+            public int      SignalBar;
+            public int      BarsLogged;
+            public string   ConditionSetId;
+            public readonly DateTime[] T = new DateTime[CONTEXT_BARS];
+            public readonly double[]   O = new double[CONTEXT_BARS];
+            public readonly double[]   H = new double[CONTEXT_BARS];
+            public readonly double[]   L = new double[CONTEXT_BARS];
+            public readonly double[]   C = new double[CONTEXT_BARS];
+            public readonly double[]   V = new double[CONTEXT_BARS];
+            public readonly double[]   D = new double[CONTEXT_BARS];
+        }
+
+        private readonly List<PendingForward> _pendingForwards = new List<PendingForward>(32);
+
+        // ── Tick log file (separate from strategy event CSV) ─────────────────
+        private StreamWriter _tickWriter;
+        private readonly StringBuilder _tickSb = new StringBuilder(128);
+        private static readonly string TICK_CSV_HEADER =
+            "Timestamp,SeqNo,TimeMs,Price,Volume,Bid,Ask,Side";
 
         // ── CSV column headers ────────────────────────────────────────────────
         private static readonly string CSV_HEADER =
@@ -134,6 +145,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             WriteCsvRow(time, "SESSION", 0, "", "", "", 0, "", 0,
                 0, 0, 0, 0, 0, 0, 0, 0, _sessionPnL,
                 "", "", $"CLOSE signals={_sessionSignals} fills={_sessionFills} filtered={_sessionFiltered}");
+
+            // Flush tick file at session end so data is safely on disk.
+            try { _tickWriter?.Flush(); } catch { }
         }
 
         // =========================================================================
@@ -327,89 +341,112 @@ namespace NinjaTrader.NinjaScript.Strategies
                 0, 0, 0,
                 "", sig.Label, sig.Detail ?? "");
 
-            // ── Log 5 pre-signal bars as BAR_CONTEXT row ──────────────────
-            // snap.Primary.Closes[0] = current bar close (signal bar)
-            // snap.Primary.Closes[1] = 1 bar ago, [4] = 4 bars ago
-            // Format per bar: O:N H:N L:N C:N V:N D:N  (pipe-separated bars)
-            if (snap.IsValid)
+            // ── BAR_CONTEXT (5 bars before) + arm BAR_FORWARD capture ────────
+            WriteBarContext(sig.SignalTime, sig.Direction.ToString(), sig.Source.ToString(),
+                sig.ConditionSetId, snap);
+            ArmForwardCapture(CurrentBar, sig.ConditionSetId ?? "");
+
+            // ── Register with forward-return tracker ─────────────────────────
+            // Every accepted signal gets tracked — not just ORB. LogTouchEvent
+            // also calls Register for ORB-specific zone touches; the tracker
+            // silently deduplicates by signalId so double-registration is safe.
+            if (!string.IsNullOrEmpty(sig.SignalId) && sig.StopPrice > 0 && sig.Target1Price > 0)
+                Tracker?.Register(
+                    sig.SignalId, sig.ConditionSetId, sig.Direction,
+                    sig.EntryPrice, sig.StopPrice, sig.Target1Price,
+                    CurrentBar, sig.SignalTime, snap, "");
+        }
+
+        // ── Shared helpers ────────────────────────────────────────────────────
+
+        private void WriteBarContext(DateTime time, string dir, string source,
+            string conditionSetId, MarketSnapshot snap)
+        {
+            if (!snap.IsValid || !WriteCsv || _writer == null) return;
+            var p   = snap.Primary;
+            var psb = new System.Text.StringBuilder(256);
+            int depth = (p.Closes != null) ? Math.Min(p.Closes.Length, CONTEXT_BARS + 1) : 0;
+            for (int i = Math.Min(CONTEXT_BARS, depth - 1); i >= 0; i--)
             {
-                var p   = snap.Primary;
-                var psb = new System.Text.StringBuilder(256);
-                int depth = (p.Closes != null) ? Math.Min(p.Closes.Length, CONTEXT_BARS + 1) : 0;
-
-                for (int i = Math.Min(CONTEXT_BARS, depth - 1); i >= 0; i--)
-                {
-                    if (i < Math.Min(CONTEXT_BARS, depth - 1)) psb.Append('|');
-                    // Time: reconstruct from signal time minus i bars
-                    // Use HH:mm only — enough to read the chart
-                    psb.AppendFormat("O:{0:F2} H:{1:F2} L:{2:F2} C:{3:F2} V:{4:F0}",
-                        p.Opens  != null && i < p.Opens.Length  ? p.Opens[i]  : 0,
-                        p.Highs  != null && i < p.Highs.Length  ? p.Highs[i]  : 0,
-                        p.Lows   != null && i < p.Lows.Length   ? p.Lows[i]   : 0,
-                        p.Closes != null && i < p.Closes.Length ? p.Closes[i] : 0,
-                        p.Volumes!= null && i < p.Volumes.Length? p.Volumes[i]: 0);
-                    if (p.BarDeltas != null && i < p.BarDeltas.Length && p.BarDeltas[i] != 0)
-                        psb.AppendFormat(" D:{0:F0}", p.BarDeltas[i]);
-                }
-
-                WriteCsvRow(sig.SignalTime, "BAR_CONTEXT", CurrentBar,
-                    sig.Direction.ToString(), sig.Source.ToString(), sig.ConditionSetId,
-                    0, "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    "PRE5", "", psb.ToString());
+                if (i < Math.Min(CONTEXT_BARS, depth - 1)) psb.Append('|');
+                psb.AppendFormat("O:{0:F2} H:{1:F2} L:{2:F2} C:{3:F2} V:{4:F0}",
+                    p.Opens  != null && i < p.Opens.Length  ? p.Opens[i]  : 0,
+                    p.Highs  != null && i < p.Highs.Length  ? p.Highs[i]  : 0,
+                    p.Lows   != null && i < p.Lows.Length   ? p.Lows[i]   : 0,
+                    p.Closes != null && i < p.Closes.Length ? p.Closes[i] : 0,
+                    p.Volumes!= null && i < p.Volumes.Length? p.Volumes[i]: 0);
+                if (p.BarDeltas != null && i < p.BarDeltas.Length && p.BarDeltas[i] != 0)
+                    psb.AppendFormat(" D:{0:F0}", p.BarDeltas[i]);
             }
+            WriteCsvRow(time, "BAR_CONTEXT", CurrentBar,
+                dir, source, conditionSetId,
+                0, "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                "PRE5", "", psb.ToString());
+        }
 
-            // ── Arm the forward bar capture ────────────────────────────────
-            _contextSignalBar  = CurrentBar;
-            _contextBarsLogged = 0;
-            _contextSignalId   = sig.ConditionSetId ?? "";
+        private void ArmForwardCapture(int bar, string conditionSetId)
+        {
+            _pendingForwards.Add(new PendingForward
+            {
+                SignalBar      = bar,
+                BarsLogged     = 0,
+                ConditionSetId = conditionSetId
+            });
         }
 
         /// <summary>
         /// Call once per primary bar from HostStrategy.OnBarUpdate.
-        /// Captures the 5 bars after a signal fires and writes BAR_FORWARD row.
-        /// No-op when no signal is pending forward capture.
+        /// Updates all pending forward captures (one per signal, accepted or rejected)
+        /// and writes a BAR_FORWARD row for each capture that completes.
         /// </summary>
         public void BarContext_Tick(MarketSnapshot snap, int currentBar)
         {
-            if (_contextSignalBar < 0) return;
-            if (!snap.IsValid) return;
+            if (_pendingForwards.Count == 0 || !snap.IsValid) return;
 
-            int barsAfter = currentBar - _contextSignalBar;
-            if (barsAfter < 1 || barsAfter > CONTEXT_BARS) return;
-
-            // Buffer this bar (barsAfter=1 is the first bar after signal)
-            int idx = barsAfter - 1;
             var p = snap.Primary;
-            _fwdT[idx] = p.Time;
-            _fwdO[idx] = p.Opens  != null && p.Opens.Length  > 0 ? p.Opens[0]  : 0;
-            _fwdH[idx] = p.Highs  != null && p.Highs.Length  > 0 ? p.Highs[0]  : 0;
-            _fwdL[idx] = p.Lows   != null && p.Lows.Length   > 0 ? p.Lows[0]   : 0;
-            _fwdC[idx] = p.Closes != null && p.Closes.Length > 0 ? p.Closes[0] : 0;
-            _fwdV[idx] = p.Volumes!= null && p.Volumes.Length> 0 ? p.Volumes[0]: 0;
-            _fwdD[idx] = p.BarDeltas != null && p.BarDeltas.Length > 0 ? p.BarDeltas[0] : 0;
-            _contextBarsLogged++;
 
-            // Once 5 bars collected, write the BAR_FORWARD row and reset
-            if (_contextBarsLogged >= CONTEXT_BARS)
+            for (int pi = _pendingForwards.Count - 1; pi >= 0; pi--)
             {
-                var fsb = new System.Text.StringBuilder(256);
-                for (int i = 0; i < CONTEXT_BARS; i++)
+                var pf = _pendingForwards[pi];
+                int barsAfter = currentBar - pf.SignalBar;
+
+                // Drop stale entries that will never complete (missed bars, session gap)
+                if (barsAfter > CONTEXT_BARS + 1)
                 {
-                    if (i > 0) fsb.Append('|');
-                    fsb.AppendFormat("T:{0:HH:mm} O:{1:F2} H:{2:F2} L:{3:F2} C:{4:F2} V:{5:F0}",
-                        _fwdT[i], _fwdO[i], _fwdH[i], _fwdL[i], _fwdC[i], _fwdV[i]);
-                    if (_fwdD[i] != 0)
-                        fsb.AppendFormat(" D:{0:F0}", _fwdD[i]);
+                    _pendingForwards.RemoveAt(pi);
+                    continue;
                 }
 
-                WriteCsvRow(_fwdT[CONTEXT_BARS - 1], "BAR_FORWARD", currentBar,
-                    "", _contextSignalId, _contextSignalId,
-                    0, "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    "POST5", "", fsb.ToString());
+                if (barsAfter < 1 || barsAfter > CONTEXT_BARS) continue;
 
-                _contextSignalBar  = -1;
-                _contextBarsLogged = 0;
-                _contextSignalId   = "";
+                int idx = barsAfter - 1;
+                pf.T[idx] = p.Time;
+                pf.O[idx] = p.Opens  != null && p.Opens.Length  > 0 ? p.Opens[0]  : 0;
+                pf.H[idx] = p.Highs  != null && p.Highs.Length  > 0 ? p.Highs[0]  : 0;
+                pf.L[idx] = p.Lows   != null && p.Lows.Length   > 0 ? p.Lows[0]   : 0;
+                pf.C[idx] = p.Closes != null && p.Closes.Length > 0 ? p.Closes[0] : 0;
+                pf.V[idx] = p.Volumes!= null && p.Volumes.Length> 0 ? p.Volumes[0]: 0;
+                pf.D[idx] = p.BarDeltas != null && p.BarDeltas.Length > 0 ? p.BarDeltas[0] : 0;
+                pf.BarsLogged++;
+
+                if (pf.BarsLogged >= CONTEXT_BARS)
+                {
+                    var fsb = new System.Text.StringBuilder(256);
+                    for (int i = 0; i < CONTEXT_BARS; i++)
+                    {
+                        if (i > 0) fsb.Append('|');
+                        fsb.AppendFormat("T:{0:HH:mm} O:{1:F2} H:{2:F2} L:{3:F2} C:{4:F2} V:{5:F0}",
+                            pf.T[i], pf.O[i], pf.H[i], pf.L[i], pf.C[i], pf.V[i]);
+                        if (pf.D[i] != 0) fsb.AppendFormat(" D:{0:F0}", pf.D[i]);
+                    }
+
+                    WriteCsvRow(pf.T[CONTEXT_BARS - 1], "BAR_FORWARD", currentBar,
+                        "", pf.ConditionSetId, pf.ConditionSetId,
+                        0, "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        "POST5", "", fsb.ToString());
+
+                    _pendingForwards.RemoveAt(pi);
+                }
             }
         }
 
@@ -542,7 +579,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             // valid stop/target gets outcome tracking.
             Tracker?.Register(signalId, conditionSetId, direction,
                               touchPrice, stopPrice, targetPrice,
-                              CurrentBar, touchTime);
+                              CurrentBar, touchTime, snap, "");
         }
 
         // =========================================================================
@@ -570,10 +607,12 @@ namespace NinjaTrader.NinjaScript.Strategies
             int barsToFirstHit,
             double closeAtWindowEnd,
             int windowBars,
-            DateTime outcomeTime)
+            DateTime outcomeTime,
+            string enrichedDetail = "")
         {
             if (!WriteCsv || _writer == null) return;
 
+            // Core outcome fields + frozen footprint snapshot + pre/post bars
             string detail = string.Format(
                 "MFE={0:F2} MAE={1:F2} HIT_STOP={2} HIT_TARGET={3} " +
                 "FIRST_HIT={4} SIM_PNL={5:F2} BARS_TO_HIT={6} " +
@@ -581,6 +620,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 mfeDollars, maeDollars, hitStop, hitTarget,
                 firstHit, simPnL, barsToFirstHit,
                 closeAtWindowEnd, windowBars);
+
+            if (!string.IsNullOrEmpty(enrichedDetail))
+                detail = detail + " | " + enrichedDetail;
 
             string dirStr = direction == SignalDirection.Long ? "L" : "S";
 
@@ -594,7 +636,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         public void SignalRejected(DateTime barTime, SignalSource source,
             SignalDirection dir, int score, string gateReason,
-             string conditionSetId = "")
+            string conditionSetId = "", MarketSnapshot snap = default)
         {
             if (Level < LogLevel.Normal) return;
             _sessionFiltered++;
@@ -602,12 +644,20 @@ namespace NinjaTrader.NinjaScript.Strategies
             Print("[SIGNAL] ✗ REJECTED  {0:HH:mm}  {1,-6} {2,-20}  score={3}  gate={4}",
                 barTime, dir, source, score, gateReason);
 
-            WriteCsvRow(barTime, "SIGNAL_REJECTED", 0,
+            WriteCsvRow(barTime, "SIGNAL_REJECTED", CurrentBar,
                 dir.ToString(), source.ToString(),
                 conditionSetId,
                 score, "", 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 gateReason, "", "");
+
+            // ── BAR_CONTEXT (5 bars before) + arm BAR_FORWARD capture ────────
+            // Rejected signals get the same pre/post candlestick capture as
+            // accepted ones so we can analyse whether the direction was right
+            // regardless of the gate that blocked entry.
+            WriteBarContext(barTime, dir.ToString(), source.ToString(),
+                conditionSetId + ":REJ", snap);
+            ArmForwardCapture(CurrentBar, conditionSetId + ":REJ");
         }
 
         public void SignalBlocked(DateTime barTime, string reason)
@@ -866,6 +916,81 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         // =========================================================================
+        // TICK LOG
+        // =========================================================================
+
+        /// <summary>
+        /// Writes one classified tick to the dedicated tick CSV file.
+        /// File: Documents\NinjaTrader 8\log\ModularStrategy_Ticks_RUNSTAMP.csv
+        /// Columns: Timestamp, SeqNo, TimeMs, Price, Volume, Bid, Ask, Side
+        /// AutoFlush is off — flushed on session close and dispose.
+        /// </summary>
+        public void LogTick(DateTime time, Tick tick)
+        {
+            if (_tickWriter == null) EnsureTickFileOpen(time);
+            if (_tickWriter == null) return;
+
+            try
+            {
+                _tickSb.Clear();
+                _tickSb.Append(time.ToString("yyyy-MM-dd HH:mm:ss.fff")); _tickSb.Append(',');
+                _tickSb.Append(tick.SeqNo);   _tickSb.Append(',');
+                _tickSb.Append(tick.TimeMs);  _tickSb.Append(',');
+                _tickSb.Append(tick.Price.ToString("F2")); _tickSb.Append(',');
+                _tickSb.Append(tick.Volume);  _tickSb.Append(',');
+                _tickSb.Append(tick.Bid > 0 ? tick.Bid.ToString("F2") : ""); _tickSb.Append(',');
+                _tickSb.Append(tick.Ask > 0 ? tick.Ask.ToString("F2") : ""); _tickSb.Append(',');
+                _tickSb.Append(tick.Side.ToString());
+                _tickWriter.WriteLine(_tickSb.ToString());
+            }
+            catch (Exception ex)
+            {
+                try { Print("[WARN]   Tick log write error: {0}", ex.Message); } catch { }
+            }
+        }
+
+        private void EnsureTickFileOpen(DateTime date)
+        {
+            if (!WriteCsv) return;
+            if (_tickWriter != null) return;
+
+            try
+            {
+                string dir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    "NinjaTrader 8", "log");
+
+                Directory.CreateDirectory(dir);
+
+                string fileName = $"ModularStrategy_Ticks_{_runStamp}.csv";
+                string path = Path.Combine(dir, fileName);
+
+                bool fileExists = File.Exists(path);
+                _tickWriter = new StreamWriter(path, append: true, encoding: Encoding.UTF8)
+                {
+                    AutoFlush = false
+                };
+
+                if (!fileExists)
+                    _tickWriter.WriteLine(TICK_CSV_HEADER);
+
+                Print("[SESSION] Tick log: {0}", path);
+            }
+            catch (Exception ex)
+            {
+                Print("[WARN]   Tick log open failed: {0}", ex.Message);
+                _tickWriter = null;
+            }
+        }
+
+        private void CloseTickCsv()
+        {
+            try { _tickWriter?.Flush(); _tickWriter?.Dispose(); }
+            catch { }
+            _tickWriter = null;
+        }
+
+        // =========================================================================
         // CSV FILE MANAGEMENT
         // =========================================================================
 
@@ -999,6 +1124,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public void Dispose()
         {
             CloseCsv();
+            CloseTickCsv();
         }
     }
 }

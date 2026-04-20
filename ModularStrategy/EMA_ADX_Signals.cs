@@ -127,17 +127,6 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (!snapshot.IsValid) return RawDecision.None;
             var p = snapshot.Primary;
 
-            // RTH gate
-            if (p.Session != SessionPhase.EarlySession &&
-                p.Session != SessionPhase.MidSession   &&
-                p.Session != SessionPhase.LateSession)
-            {
-                // Still update EMAs during non-RTH so they are ready at open,
-                // but do not generate signals
-                UpdateEMAs(p.Close);
-                return RawDecision.None;
-            }
-
             // Update EMAs before checking cross
             UpdateEMAs(p.Close);
 
@@ -339,13 +328,8 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (!snapshot.IsValid) return RawDecision.None;
             var p = snapshot.Primary;
 
-            // Update ADX state every bar (including non-RTH) so it is warm at open
+            // Update ADX state every bar so it is warm
             ADXResult adx = UpdateADX(p);
-
-            // RTH gate
-            if (p.Session != SessionPhase.EarlySession &&
-                p.Session != SessionPhase.MidSession   &&
-                p.Session != SessionPhase.LateSession)  return RawDecision.None;
 
             if (!adx.IsValid)    return RawDecision.None;
             if (!adx.IsTrending) return RawDecision.None;   // ADX < 25

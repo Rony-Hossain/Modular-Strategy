@@ -57,12 +57,6 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (!snapshot.IsValid) return RawDecision.None;
             var p = snapshot.Primary;
 
-            // Session gate: only trade during regular session
-            if (p.Session != SessionPhase.EarlySession &&
-                p.Session != SessionPhase.MidSession   &&
-                p.Session != SessionPhase.LateSession)
-                return RawDecision.None;
-
             // VWAP must be ready
             double vwap = snapshot.VWAP;
             if (vwap <= 0) return RawDecision.None;

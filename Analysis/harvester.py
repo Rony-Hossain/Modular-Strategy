@@ -6,7 +6,7 @@ LOG_PATH = "../backtest/Log.csv"
 OUTPUT_PATH = "feature_matrix.csv"
 
 def harvest_data():
-    print(f"--- HARVESTING SIGNAL DATA FROM {LOG_PATH} ---")
+    print(f"--- HARVESTING ALL FEATURES FROM {LOG_PATH} ---")
     if not os.path.exists(LOG_PATH):
         print("Error: Log.csv not found.")
         return
@@ -34,7 +34,7 @@ def harvest_data():
                         if '=' in p:
                             try:
                                 k, v = p.split('=')
-                                key = f"flow_{k}"
+                                key = f"f_{k.lower()}"
                                 ctx[key] = float(v.replace('+', ''))
                                 all_keys.add(key)
                             except: pass
@@ -48,38 +48,51 @@ def harvest_data():
                             try:
                                 k, v = p.split('=')
                                 if '(' in v: v = v.split('(')[0]
-                                key = f"struct_{k}"
+                                key = f"s_{k.lower()}"
                                 ctx[key] = float(v)
                                 all_keys.add(key)
                             except: pass
                     bar_struct[bar] = ctx
 
                 elif tag == 'EVAL':
-                    signals[(bar, cid)] = {
-                        'eval_score': row.get('Score', '0'),
-                        'eval_dir': row.get('Direction', '')
+                    sig_data = {
+                        'raw_score': row.get('RawScore', '0'),
+                        'eval_dir': row.get('Direction', ''),
+                        'filter_reason': row.get('FilterReason', '')
                     }
-                    all_keys.add('eval_score'); all_keys.add('eval_dir')
+                    for k, v in row.items():
+                        kl = k.lower()
+                        if kl.startswith('f_') or kl.startswith('s_') or kl.startswith('v_'):
+                            try:
+                                sig_data[kl] = float(v)
+                                all_keys.add(kl)
+                            except: sig_data[kl] = v
+                    
+                    signals[(bar, cid)] = sig_data
 
                 elif tag == 'TOUCH_OUTCOME':
                     gate = row.get('GateReason','')
                     try:
                         orig_bar = gate.split(':')[-1]
-                        sim_pnl = 0; hit = ''; mae = 0
-                        for part in detail.split():
-                            if part.startswith('SIM_PNL='): sim_pnl = part.split('=')[1].replace('$','').replace(',','')
-                            elif part.startswith('FIRST_HIT='): hit = part.split('=')[1]
-                            elif part.startswith('MAE='): mae = part.split('=')[1].replace('$','').replace(',','')
+                        sim_pnl = 0; mae = 0
+                        
+                        clean = detail.replace('|', ' ').replace(',', ' ')
+                        pairs = clean.split()
+                        for p in pairs:
+                            if '=' in p:
+                                k, v = p.split('=')
+                                if k == 'PNL_CONS': sim_pnl = float(v)
+                                elif k == 'MAE': mae = float(v)
                         
                         outcomes.append({
-                            'bar': orig_bar, 'ts': ts, 'cid': cid, 'pnl': sim_pnl, 'hit': hit, 'mae': mae, 'gate': gate
+                            'bar': orig_bar, 'ts': ts, 'cid': cid, 'pnl': sim_pnl, 'hit': row.get('Label', ''), 'mae': mae, 'gate': gate
                         })
-                    except: pass
+                    except Exception as e: pass
     except Exception as e:
-        print(f"Error parsing: {e}")
+        print(f"Error: {e}")
         return
 
-    header = ['ts', 'cid', 'bar', 'pnl', 'hit', 'mae', 'gate'] + sorted(list(all_keys))
+    header = ['ts', 'cid', 'bar', 'pnl', 'hit', 'mae', 'gate', 'raw_score', 'eval_dir', 'filter_reason'] + sorted(list(all_keys))
 
     with open(OUTPUT_PATH, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=header)
@@ -91,7 +104,7 @@ def harvest_data():
             if (o['bar'], o['cid']) in signals: row_data.update(signals[(o['bar'], o['cid'])])
             writer.writerow({k: row_data.get(k, '') for k in header})
 
-    print(f"Created feature matrix: {OUTPUT_PATH}")
+    print(f"Created matrix with {len(outcomes)} outcomes.")
 
 if __name__ == "__main__":
     harvest_data()

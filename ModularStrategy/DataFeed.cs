@@ -468,20 +468,19 @@ namespace NinjaTrader.NinjaScript.Strategies
         // OPENING RANGE BOX
         // ===================================================================
 
+        private const int ORB_BARS = 30;
+
         private void UpdateORB()
         {
             if (_orbComplete) return;
 
-            TimeSpan t = _host.Time[0].TimeOfDay;
-
-            // 1. Expansion window: 9:30 AM to 9:59:59 AM
-            if (t >= SessionTimes.REGULAR_OPEN && t < SessionTimes.ORB_END)
+            // Build the range for the first ORB_BARS bars of the session, then lock.
+            if (_barsSinceOpen < ORB_BARS)
             {
                 if (_host.High[0] > _orbHigh) _orbHigh = _host.High[0];
                 if (_host.Low[0]  < _orbLow)  _orbLow  = _host.Low[0];
             }
-            // 2. Lock window: 10:00 AM to 4:00 PM
-            else if (t >= SessionTimes.ORB_END && t < SessionTimes.REGULAR_CLOSE)
+            else
             {
                 _orbComplete     = true;
                 _orbCompleteBar  = _host.CurrentBar;
@@ -523,13 +522,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private SessionPhase GetSessionPhase()
         {
-            var t = _host.Time[0].TimeOfDay;
-            if (t < SessionTimes.REGULAR_OPEN)  return SessionPhase.PreMarket;
-            if (t < SessionTimes.ORB_END) return SessionPhase.OpeningRange;
-            if (t < SessionTimes.EARLY_END) return SessionPhase.EarlySession;
-            if (t < SessionTimes.MID_END) return SessionPhase.MidSession;
-            if (t < SessionTimes.REGULAR_CLOSE) return SessionPhase.LateSession;
-            return SessionPhase.AfterHours;
+            return SessionPhase.EarlySession;
         }
 
         // ===================================================================

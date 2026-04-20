@@ -252,7 +252,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _fpAssembler = new FootprintAssembler();
                 _fpCore      = new FootprintCore(_fpAssembler, FootprintCoreConfig.Default);
                 _fpCore.Initialize(Instrument.MasterInstrument.TickSize, 600, Data.BarsPeriodType.Minute, 1);
-                _tape        = new TapeRecorder();
+                _tape        = new TapeRecorder(tickSize: Instrument.MasterInstrument.TickSize);
                 _bigPrint    = new BigPrintDetector();
                 _velocity    = new VelocityDetector();
                 _sweep       = new SweepDetector(Instrument.MasterInstrument.TickSize);
@@ -261,6 +261,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _tape.SetVelocityDetector(_velocity);
                 _tape.SetSweepDetector(_sweep);
                 _tape.SetTapeIcebergDetector(_tapeIceberg);
+                _tape.OnTickClassified = (time, tick) => _log?.LogTick(time, tick);
                 _entryAdvisor = new FootprintEntryAdvisor(FootprintEntryAdvisorConfig.Default);
                 _orbProcessor = new VolumeProfileProcessor(Instrument.MasterInstrument.TickSize);
                 _signalGen = new SignalGenerator(
@@ -278,7 +279,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _ui           = new UIRenderer { ShowVWAP=ShowVWAP, ShowSignalBubbles=ShowSignals, ShowOBZones=ShowOBZones, ShowSRLevels=true, ShowORBLines=true };
                 _logic.Initialize(inst, Instrument.MasterInstrument.TickSize, Instrument.MasterInstrument.TickSize * Instrument.MasterInstrument.PointValue);
             }
-            else if (State == State.Terminated) { _ui?.DisposeResources(); _log?.Dispose(); }
+            else if (State == State.Terminated)
+            {
+                _forwardTracker?.FlushRemaining(Time[0], CurrentBar);
+                _log?.SessionClose(Time[0]);
+                _ui?.DisposeResources();
+                _log?.Dispose();
+            }
         }
 
         public override void OnRenderTargetChanged()
@@ -365,8 +372,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             OnPopulateIndicatorBag(ref snapshot);
             _forwardTracker?.OnBar(
-                High[0], Low[0], Close[0], Time[0],
-                CurrentBar, Bars.IsFirstBarOfSession);
+                Open[0], High[0], Low[0], Close[0],
+                Volume[0],
+                snapshot.IsValid ? snapshot.Get(SnapKeys.BarDelta) : 0.0,
+                Time[0], CurrentBar, Bars.IsFirstBarOfSession);
             _log?.BarContext_Tick(snapshot, CurrentBar);
             _log?.OrderFlowBar(snapshot.Primary.Time, snapshot); // RESTORED
             _log?.StructuralBar(snapshot.Primary.Time, in _lastSrResult);
@@ -392,9 +401,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                     DateTime volBarTime = volBarsObj.GetTime(i);
                     if (volBarTime <= primaryBarStart) break;
                     if (volBarTime > primaryBarEnd)    continue;
-
-                    TimeSpan tod = volBarTime.TimeOfDay;
-                    if (tod < SessionTimes.REGULAR_OPEN || tod >= SessionTimes.ORB_END) continue;
 
                     var v = volBars.Volumes[i];
                     if (v == null) continue;
@@ -449,6 +455,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if (Bars.IsFirstBarOfSession)
             {
+                _log?.SessionClose(Time[0]);
                 _tracker?.EmitSessionSummary(Time[0], _log); _tracker?.ResetSession();
                 _divTracker.Reset();
                 _logic.OnSessionOpen(snapshot); _log?.SessionOpen(Time[0], snapshot.VWAP, snapshot.ATR);
@@ -476,7 +483,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             _engine.Evaluate(snapshot);
 
             // ── ORB Diagnostics ──
-            if (snapshot.ORBComplete && (snapshot.Primary.Session == SessionPhase.EarlySession || snapshot.Primary.Session == SessionPhase.MidSession))
+            if (snapshot.ORBComplete)
             {
                 var orbSet = _engine.GetSet("ORB_Value_v2");
                 if (orbSet != null)
@@ -835,29 +842,39 @@ namespace NinjaTrader.NinjaScript.Strategies
             var smfFull = new ConditionSets.SMFFullEngine();
             var smfEngine = new ConditionSets.SMFNativeEngine();
             return new StrategyEngine(_log,
-                    new ConditionSets.SMF_Native_BandReclaim(smfEngine),
- 
+                // ── SMF Native ────────────────────────────────────────────────
+                new ConditionSets.SMF_Native_BandReclaim(smfEngine),
+                new ConditionSets.SMF_Native_Impulse(smfEngine),
+                new ConditionSets.SMF_Native_Retest(smfEngine),
+                // ── SMF Full ──────────────────────────────────────────────────
                 new ConditionSets.SMF_Full_Impulse(smfFull),
                 new ConditionSets.SMF_Full_Switch(smfFull),
-                new ConditionSets.SMC_BOS(), 
-                new ConditionSets.SMC_OB(), 
-                new ConditionSets.SMC_IFVG(), 
-                new ConditionSets.SMC_Liquidity_Sweep(), 
-                new ConditionSets.SMC_Session_Sweep(), 
-                new ConditionSets.Wyckoff_Spring(), 
-                new ConditionSets.Wyckoff_Upthrust(), 
-                new ConditionSets.FailedAuction(), 
-                new ConditionSets.EMA_Cross(), 
+                new ConditionSets.SMF_Full_Retest(smfFull),
+                // ── SMC ───────────────────────────────────────────────────────
+                new ConditionSets.SMC_BOS(),
+                new ConditionSets.SMC_IFVG(),
+                new ConditionSets.SMC_FVG_Retest(),
+                new ConditionSets.SMC_Liquidity_Sweep(),
+                new ConditionSets.SMC_Session_Sweep(),
+                new ConditionSets.SMC_IB_Retest(),
+                // ── Wyckoff ───────────────────────────────────────────────────
+                new ConditionSets.Wyckoff_Spring(),
+                new ConditionSets.Wyckoff_Upthrust(),
+                // ── Order Flow ────────────────────────────────────────────────
+                new ConditionSets.FailedAuction(),
                 new ConditionSets.DeltaDivergenceSignal(),
                 new ConditionSets.ImbalanceReAggressionSignal(),
-                // IcebergAbsorption_v1 DISABLED (Phase 3.11): 0/2 win rate over
-                // 6-week backtest, -$2,307 total drag. 7,551 evals produced only
-                // 2 trades, both large losses. Signal not ready for live use.
-                // new ConditionSets.IcebergAbsorptionSignal(),
+                new ConditionSets.IcebergAbsorptionSignal(),
+                // ── Trend / EMA ───────────────────────────────────────────────
+                new ConditionSets.EMA_Cross(),
+                new ConditionSets.ADX_Trend(),
+                // ── VWAP ─────────────────────────────────────────────────────
+                new ConditionSets.VWAP_RTH(),
+                // ── Scalp / ORB ───────────────────────────────────────────────
                 new ConditionSets.HybridScalpSignal(),
                 new ConditionSets.ORB_Classic(_log),
                 new ConditionSets.ORB_Measure(_log)
-				); 
+            );
         }
     }
 }

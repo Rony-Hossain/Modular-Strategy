@@ -53,11 +53,11 @@ def get_diff_ci(a_pnls, b_pnls, n_iterations=1000, alpha=0.05):
     return (diffs[int(n_iterations * (alpha / 2))], diffs[int(n_iterations * (1 - alpha / 2))])
 
 def extract_match_key(signal_id):
-    """Robust matching: Invariant (SetId, barIndex) handles both yyyyMMdd and yyyyMMdd_HHmmss."""
     if not signal_id or ':' not in signal_id: return None
     parts = signal_id.split(':')
-    if len(parts) < 3: return None
-    return (parts[0], parts[-1]) 
+    if len(parts) == 4: return (parts[0], parts[1], parts[2], parts[3])
+    elif len(parts) == 3: return (parts[0], 'Unknown', parts[1], parts[2])
+    return None 
 
 def pnl_stats(group, label=""):
     """Dense statistical summary with percentile distributions and volatile isolation."""

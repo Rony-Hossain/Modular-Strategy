@@ -3,6 +3,7 @@ import numpy as np
 import os
 
 def discover_best_scenarios():
+    print("\n======================================================\nEXPLORATORY — NO STATISTICAL VALIDITY\n======================================================")
     input_path = "ml_feature_matrix.csv"
     if not os.path.exists(input_path):
         print("Error: ml_feature_matrix.csv not found.")

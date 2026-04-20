@@ -144,11 +144,6 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             if (p.Highs == null || p.Highs.Length < LOOKBACK) return RawDecision.None;
             if (p.Lows  == null || p.Lows.Length  < LOOKBACK) return RawDecision.None;
 
-            // RTH gate
-            if (p.Session != SessionPhase.EarlySession &&
-                p.Session != SessionPhase.MidSession   &&
-                p.Session != SessionPhase.LateSession)  return RawDecision.None;
-
             // Re-entry suppression
             if (_lastFillBar > 0 && p.CurrentBar - _lastFillBar < REENTRY_BARS)
                 return RawDecision.None;

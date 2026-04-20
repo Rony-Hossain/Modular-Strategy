@@ -194,14 +194,14 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             var p = snapshot.Primary;
             double atr = snapshot.ATR > 0 ? snapshot.ATR : _tickSize * 10;
 
-            if (p.Session >= SessionPhase.EarlySession && snapshot.Tokyo.IsValid && snapshot.Tokyo.High > 0)
+            if (snapshot.Tokyo.IsValid && snapshot.Tokyo.High > 0)
             {
                 if (!_aHiSwept && p.High > snapshot.Tokyo.High + _tickSize)
                 { _aHiSwept = true; if (p.Close < snapshot.Tokyo.High && p.Close < (p.High + p.Low) / 2.0) return Bld(false, p, snapshot, atr, snapshot.Tokyo.High, "AsiaSweepHigh"); }
                 if (!_aLoSwept && p.Low < snapshot.Tokyo.Low - _tickSize)
                 { _aLoSwept = true; if (p.Close > snapshot.Tokyo.Low && p.Close > (p.High + p.Low) / 2.0) return Bld(true, p, snapshot, atr, snapshot.Tokyo.Low, "AsiaSweepLow"); }
             }
-            if (p.Session >= SessionPhase.MidSession && snapshot.London.IsValid && snapshot.London.High > 0)
+            if (snapshot.London.IsValid && snapshot.London.High > 0)
             {
                 if (!_lHiSwept && p.High > snapshot.London.High + _tickSize)
                 { _lHiSwept = true; if (p.Close < snapshot.London.High && p.Close < (p.High + p.Low) / 2.0) return Bld(false, p, snapshot, atr, snapshot.London.High, "LondonSweepHigh"); }
@@ -239,22 +239,17 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         private double _tickSize, _tickValue;
         private double _ibHigh, _ibLow;
         private bool _ibComplete;
-        private bool _ibStarted;
+        private int _ibStartBar;
         private int _ibCompleteBar;
         private bool _tradedHi, _tradedLo;
 
-        // IB = first 60 minutes after RTH open (9:30 ET), NOT session open (18:00 ET).
-        // The video: "initial balance is the high and low of the first hour
-        // after the market opens" — this means the RTH open where institutions
-        // establish the day's range, not the overnight session start.
-        private static readonly TimeSpan RTH_OPEN = TimeSpan.FromHours(9.5);  // 9:30 ET
         private const int IB_MINUTES = 60;
 
         public void Initialise(double tickSize, double tickValue) { _tickSize = tickSize; _tickValue = tickValue; }
         public void OnSessionOpen(MarketSnapshot snapshot)
         {
             _ibHigh = 0; _ibLow = double.MaxValue;
-            _ibComplete = false; _ibStarted = false; _ibCompleteBar = 0;
+            _ibComplete = false; _ibStartBar = -1; _ibCompleteBar = 0;
             _tradedHi = false; _tradedLo = false;
         }
         public void OnFill(SignalObject signal, double fillPrice) { }
@@ -266,24 +261,15 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
             var p = snapshot.Primary;
             double atr = snapshot.ATR > 0 ? snapshot.ATR : _tickSize * 10;
 
-            // ── Wait for RTH open, then build IB ─────────────────────────
+            // ── Build IB from first bar of session ────────────────────────
             if (!_ibComplete)
             {
-                // Don't start building until 9:30 ET
-                if (!_ibStarted)
-                {
-                    if (p.Time.TimeOfDay >= RTH_OPEN)
-                        _ibStarted = true;
-                    else
-                        return RawDecision.None;
-                }
+                if (_ibStartBar < 0) _ibStartBar = p.CurrentBar;
 
                 if (p.High > _ibHigh) _ibHigh = p.High;
                 if (p.Low < _ibLow) _ibLow = p.Low;
 
-                // Complete after 60 minutes from RTH open (10:30 ET)
-                TimeSpan ibEnd = RTH_OPEN.Add(TimeSpan.FromMinutes(IB_MINUTES));
-                if (p.Time.TimeOfDay >= ibEnd)
+                if (p.CurrentBar - _ibStartBar >= IB_MINUTES)
                 {
                     _ibComplete = true;
                     _ibCompleteBar = p.CurrentBar;
