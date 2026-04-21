@@ -134,6 +134,9 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         // Minimum stop width from entry.
         private const double MIN_STOP_ATR_MULT = StrategyConfig.Modules.HYBRID_MIN_STOP_ATR_MULT;
 
+        // Maximum stop width from entry — prevents catastrophic losses on wide structural levels.
+        private const double MAX_STOP_ATR_MULT = StrategyConfig.Modules.HYBRID_MAX_STOP_ATR_MULT;
+
         // Stop lookback when zone boundaries are unavailable.
         private const int STOP_LOOKBACK_BARS = StrategyConfig.Modules.HYBRID_STOP_LOOKBACK_BARS;
 
@@ -383,6 +386,9 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
                 double minStop = p.Close - MIN_STOP_ATR_MULT * atr;
                 if (stopPrice > minStop) stopPrice = minStop;
+
+                double maxStop = p.Close - MAX_STOP_ATR_MULT * atr;
+                if (stopPrice < maxStop) stopPrice = maxStop;
             }
             else
             {
@@ -399,6 +405,9 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
                 double minStop = p.Close + MIN_STOP_ATR_MULT * atr;
                 if (stopPrice < minStop) stopPrice = minStop;
+
+                double maxStop = p.Close + MAX_STOP_ATR_MULT * atr;
+                if (stopPrice > maxStop) stopPrice = maxStop;
             }
 
             // ── Sanity check ───────────────────────────────────────────────────

@@ -197,6 +197,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (stopTicks < StrategyConfig.Policy.MIN_STOP_TICKS)
                 return Reject($"G2:StopTooTight({stopTicks:F1}ticks<{StrategyConfig.Policy.MIN_STOP_TICKS}) [post-slip]");
 
+            if (stopTicks > StrategyConfig.Policy.MAX_STOP_TICKS)
+                return Reject($"G2:StopTooWide({stopTicks:F1}ticks>{StrategyConfig.Policy.MAX_STOP_TICKS})");
+
             // ── Gate 4: position sizing ───────────────────────────────────
             // Risk-based sizing: contracts = floor(accountSize × riskPct / (stopTicks × tickValue))
             //
@@ -207,10 +210,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Example — tight stop, 24 ticks:
             //   contracts = floor($1,000 / (24 × $5)) = floor(8.33) = 5 (capped at MaxContracts)
             //
-            // If formula produces 0 (riskPct set too low for this stop width),
-            // fall back to 1 contract and warn. User should raise RiskPct.
-            // Previous setting: RiskPct = 0.0005 (0.05%) → $50 risk → always 0 → always 1.
-            // Correct setting:  RiskPct = 0.01   (1.0%)  → risk-proportional sizing.
+            // REJECTION: If formula produces 0 (stop too wide for account risk),
+            // reject the signal. Do NOT fall back to 1 contract — that is how
+            // $3,000 losses happen on $500 risk limits.
             int contracts = MathPolicy.PositionSize_Calculate(
                 _accountSize,
                 _riskPctPerTrade,
@@ -220,11 +222,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if (contracts <= 0)
             {
-                contracts = 1;
-                _log?.Warn(_lastBarTime,
-                    "G4:SizeFloor — risk=${0:F0} stop={1:F0}t×${2:F0}=${3:F0} → 1 contract (raise RiskPct={4:P2})",
+                return Reject(string.Format(
+                    "G4:RiskTooHigh — risk=${0:F0} stop={1:F0}t×${2:F0}=${3:F0} (size=0)",
                     _accountSize * _riskPctPerTrade, stopTicks, tickValue,
-                    stopTicks * tickValue, _riskPctPerTrade);
+                    stopTicks * tickValue));
             }
 
             // ── Gate 5: targets ──

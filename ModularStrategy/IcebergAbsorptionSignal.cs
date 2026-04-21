@@ -149,7 +149,11 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         // Minimum stop width. Prevents trivial stops on doji exhaustion bars.
         private const double MIN_STOP_ATR_MULT = StrategyConfig.Modules.ICE_MIN_STOP_ATR_MULT;
 
-        // Stop lookback: only 2 bars. The exhaustion event fired on this bar.
+        // Maximum stop width.
+        private const double MAX_STOP_ATR_MULT = StrategyConfig.Modules.ICE_MAX_STOP_ATR_MULT;
+
+        // Stop lookback: only 2 bars.
+        //The exhaustion event fired on this bar.
         // Using 3+ bars would place the stop well below/above the actual
         // defended level, creating unnecessary risk.
         private const int STOP_LOOKBACK_BARS = StrategyConfig.Modules.ICE_STOP_LOOKBACK_BARS;
@@ -322,6 +326,9 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
                 double minStop = p.Close - MIN_STOP_ATR_MULT * atr;
                 if (stopPrice > minStop) stopPrice = minStop;
+
+                double maxStop = p.Close - MAX_STOP_ATR_MULT * atr;
+                if (stopPrice < maxStop) stopPrice = maxStop;
             }
             else
             {
@@ -335,6 +342,9 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
                 double minStop = p.Close + MIN_STOP_ATR_MULT * atr;
                 if (stopPrice < minStop) stopPrice = minStop;
+
+                double maxStop = p.Close + MAX_STOP_ATR_MULT * atr;
+                if (stopPrice > maxStop) stopPrice = maxStop;
             }
 
             // ── Sanity check ───────────────────────────────────────────────────

@@ -14,6 +14,7 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
         private const double MIN_ABSORPTION_SCORE = StrategyConfig.Modules.DD_MIN_ABSORPTION_SCORE;
         private const double ATR_STOP_BUFFER = StrategyConfig.Modules.DD_ATR_STOP_BUFFER;
         private const double MIN_STOP_ATR_MULT = StrategyConfig.Modules.DD_MIN_STOP_ATR_MULT;
+        private const double MAX_STOP_ATR_MULT = StrategyConfig.Modules.DD_MAX_STOP_ATR_MULT;
         private const int STOP_LOOKBACK_BARS = StrategyConfig.Modules.DD_STOP_LOOKBACK_BARS;
         private const int REENTRY_COOLDOWN = StrategyConfig.Modules.DD_COOLDOWN_BARS;
 
@@ -109,6 +110,9 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
                 double minStop = p.Close - MIN_STOP_ATR_MULT * atr;
                 if (stopPrice > minStop) stopPrice = minStop;
+
+                double maxStop = p.Close - MAX_STOP_ATR_MULT * atr;
+                if (stopPrice < maxStop) stopPrice = maxStop;
             }
             else
             {
@@ -121,6 +125,9 @@ namespace NinjaTrader.NinjaScript.Strategies.ConditionSets
 
                 double minStop = p.Close + MIN_STOP_ATR_MULT * atr;
                 if (stopPrice < minStop) stopPrice = minStop;
+
+                double maxStop = p.Close + MAX_STOP_ATR_MULT * atr;
+                if (stopPrice > maxStop) stopPrice = maxStop;
             }
 
             if (isLong  && stopPrice >= p.Close)
