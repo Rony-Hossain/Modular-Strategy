@@ -260,21 +260,28 @@ OPTIMIZED = {
     "SCORE_REJECT": 80,
     "REQUIRE_H4_ALIGNED": true,
     "PER_SOURCE_THRESHOLDS": {
-        "VWAP_Reclaim": 72,
-        "SMC_OrderBlock": 52,
-        "SMF_Retest": 91,
-        "Confluence": 87,
-        "SMF_Impulse": 70,
-        "EMA_CrossSignal": 61,
-        "ORB_Value_v2": 94,
-        "ORB_Retest": 58,
-        "OrderFlow_Abs": 88,
-        "FailedAuction": 80,
-        "ADX_TrendSignal": 83,
-        "OrderFlow_Delta": 53,
-        "SMC_BOS": 90,
-        "SMC_IB_Retest": 51
-    },
+    # LOSERS — disabled pending C# review
+    "SMF_Impulse":      99,   # was 70, PF=0.64, -$2,037 gross
+    "ADX_TrendSignal":  99,   # was 83, PF=0.68, -$625
+    "VWAP_Reclaim":     99,   # was 72, PF=0.88, 100% stop-out
+    "EMA_CrossSignal":  99,   # was 61, PF=0.72, only 13 trades anyway
+    
+    # WINNERS — threshold lowered to capture more of them
+    "FailedAuction":    60,   # was 80, PF=1.86 — your star
+    "OrderFlow_Abs":    60,   # was 88, PF=4.68 — small sample, amazing ratio
+    "SMC_OrderBlock":   52,   # unchanged, PF=4.99
+    
+    # MARGINAL — keep as-is for now
+    "Confluence":       87,   # unchanged
+    "SMF_Retest":       91,   # unchanged
+    "ORB_Retest":       58,   # unchanged
+    
+    # UNTESTED — leave for now, no trades in backtest
+    "OrderFlow_Delta":  53,
+    "SMC_BOS":          90,
+    "ORB_Value_v2":     94,
+    "SMC_IB_Retest":    51,
+},
     "OPT_TIMESTAMP": "2026-04-20T01:21:18",
     "LAYER_A_H4": 19,
     "LAYER_A_H2": 13,
