@@ -1,0 +1,20 @@
+17:05:37 | INFO  | Pipeline log: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-27_170537.log
+17:05:37 | INFO  | Pipeline JSONL: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-27_170537.jsonl
+17:05:37 | INFO  |   [PIPELINE_START] repo_root=D:\Ninjatrader-Modular-Startegy | plan_dir=D:\Ninjatrader-Modular-Startegy\Backtest_Analysis_ML_plan | phase_ids=['26', '27', '28'] | skip_existing=False
+17:05:41 | INFO  |   [HEALTH_CHECK] claude=True | gemini=True
+17:05:41 | INFO  |   [SCHEDULER_TICK] iteration=1 | pending=['26', '27', '28'] | completed=[]
+17:05:41 | INFO  | ============================================================
+17:05:41 | INFO  | [PHASE 26] START — 26_ta_decision_audit.py
+17:05:41 | INFO  | ============================================================
+17:05:41 | INFO  | ============================================================
+17:05:41 | INFO  | [PHASE 27] START — 27_funnel_orphan_audit.py
+17:05:41 | INFO  | ============================================================
+17:05:41 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi
+17:05:41 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi
+17:05:41 | INFO  |   [ARTIFACT_PREVIEW] phase_id=27 | sampled=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter
+17:05:41 | INFO  |   [ARTIFACT_PREVIEW] phase_id=26 | sampled=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter
+17:05:43 | ERROR |   [ERROR] 26 — Parallel phase failed: ActivityError: Activity task failed
+17:05:43 | ERROR |   [ERROR] 27 — Parallel phase failed: ActivityError: Activity task failed
+17:05:43 | INFO  |   [PHASE_FAILED] phase_id=26 | error=Activity task failed
+17:05:43 | INFO  |   [PHASE_FAILED] phase_id=27 | error=Activity task failed
+17:05:43 | INFO  |   [SCHEDULER_TICK] iteration=2 | pending=['28'] | completed=[]

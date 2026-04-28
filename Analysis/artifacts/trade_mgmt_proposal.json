@@ -1,0 +1,6 @@
+{
+  "BE_ARM_RETEST": 0.25,
+  "BE_ARM_BOS": 0.3,
+  "BE_ARM_IMPULSE": 0.35,
+  "T1_PARTIAL_PCT": 0.5
+}

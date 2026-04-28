@@ -1,0 +1,5 @@
+temporalio
+google-genai
+pydantic
+python-dotenv
+pywinauto

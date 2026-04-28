@@ -1,0 +1,14 @@
+{"ts": "2026-04-27T21:05:37.959634+00:00", "event": "PIPELINE_START", "repo_root": "D:\\Ninjatrader-Modular-Startegy", "plan_dir": "D:\\Ninjatrader-Modular-Startegy\\Backtest_Analysis_ML_plan", "phase_ids": ["26", "27", "28"], "skip_existing": false}
+{"ts": "2026-04-27T21:05:41.010076+00:00", "event": "HEALTH_CHECK", "claude": true, "gemini": true}
+{"ts": "2026-04-27T21:05:41.089783+00:00", "event": "SCHEDULER_TICK", "iteration": 1, "pending": ["26", "27", "28"], "completed": []}
+{"ts": "2026-04-27T21:05:41.093200+00:00", "event": "phase_start", "phase_id": "26", "script_name": "26_ta_decision_audit.py", "is_micro": false}
+{"ts": "2026-04-27T21:05:41.095862+00:00", "event": "phase_start", "phase_id": "27", "script_name": "27_funnel_orphan_audit.py", "is_micro": false}
+{"ts": "2026-04-27T21:05:41.850201+00:00", "event": "ARTIFACT_SAMPLE", "count": 10, "files": ["bos_choch_audit.parquet", "bos_choch_summary.csv", "bos_choch_summary.md", "context_bars.parquet", "dynamic_be.parquet", "evals.parquet", "filter_audit_matrix.parquet", "filter_audit_summary.csv", "flow_bars.parquet", "forward_bars.parquet"]}
+{"ts": "2026-04-27T21:05:41.960205+00:00", "event": "ARTIFACT_SAMPLE", "count": 10, "files": ["bos_choch_audit.parquet", "bos_choch_summary.csv", "bos_choch_summary.md", "context_bars.parquet", "dynamic_be.parquet", "evals.parquet", "filter_audit_matrix.parquet", "filter_audit_summary.csv", "flow_bars.parquet", "forward_bars.parquet"]}
+{"ts": "2026-04-27T21:05:41.962456+00:00", "event": "ARTIFACT_PREVIEW", "phase_id": "27", "sampled": ["bos_choch_audit.parquet", "bos_choch_summary.csv", "bos_choch_summary.md", "context_bars.parquet", "dynamic_be.parquet", "evals.parquet", "filter_audit_matrix.parquet", "filter_audit_summary.csv", "flow_bars.parquet", "forward_bars.parquet"]}
+{"ts": "2026-04-27T21:05:41.970040+00:00", "event": "ARTIFACT_PREVIEW", "phase_id": "26", "sampled": ["bos_choch_audit.parquet", "bos_choch_summary.csv", "bos_choch_summary.md", "context_bars.parquet", "dynamic_be.parquet", "evals.parquet", "filter_audit_matrix.parquet", "filter_audit_summary.csv", "flow_bars.parquet", "forward_bars.parquet"]}
+{"ts": "2026-04-27T21:05:43.002834+00:00", "event": "error", "phase_id": "26", "message": "Parallel phase failed: ActivityError: Activity task failed"}
+{"ts": "2026-04-27T21:05:43.004339+00:00", "event": "error", "phase_id": "27", "message": "Parallel phase failed: ActivityError: Activity task failed"}
+{"ts": "2026-04-27T21:05:43.005003+00:00", "event": "PHASE_FAILED", "phase_id": "26", "error": "Activity task failed"}
+{"ts": "2026-04-27T21:05:43.005603+00:00", "event": "PHASE_FAILED", "phase_id": "27", "error": "Activity task failed"}
+{"ts": "2026-04-27T21:05:43.006029+00:00", "event": "SCHEDULER_TICK", "iteration": 2, "pending": ["28"], "completed": []}

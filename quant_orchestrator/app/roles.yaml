@@ -1,0 +1,86 @@
+# =============================================================================
+# roles.yaml — pipeline LLM role configuration
+# =============================================================================
+#
+# TEMPORARY: script_writer and plan_drafter switched to Claude (Sonnet)
+# while Gemini free-tier daily quota is exhausted (limit: 20 req/day).
+# To switch back once Gemini quota resets or billing is enabled:
+#   - set script_writer provider back to gemini
+#   - set plan_drafter provider back to gemini
+#
+# Per-run cost in this config: ~$2-5 on Claude (all roles on Claude).
+# Per-run cost when Gemini restored: ~$1.50-$3 (Claude reasoning only).
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Plan drafter — reads plan doc and produces a structured draft.
+# Normally Gemini Flash (cheap). Switched to Claude while quota exhausted.
+# -----------------------------------------------------------------------------
+plan_drafter:
+  provider: claude
+  model: claude-sonnet-4-6
+  max_tokens: 4096
+  timeout_seconds: 300
+
+# -----------------------------------------------------------------------------
+# Plan editor — Claude critiques the draft and emits the final writer prompt.
+# -----------------------------------------------------------------------------
+plan_editor:
+  provider: claude
+  model: claude-sonnet-4-6
+  max_tokens: 4096
+  timeout_seconds: 300
+  thinking: false
+
+# -----------------------------------------------------------------------------
+# Script writer — translates spec to Python code.
+# Normally Gemini Flash (cheap/fast). Switched to Claude while quota exhausted.
+# -----------------------------------------------------------------------------
+script_writer:
+  provider: claude
+  model: claude-sonnet-4-6
+  max_tokens: 32000        
+  timeout_seconds: 300
+
+# -----------------------------------------------------------------------------
+# Reviewer — Claude. Reviews script before execution.
+# -----------------------------------------------------------------------------
+reviewer:
+  provider: claude
+  model: claude-sonnet-4-6
+  max_tokens: 2048
+  timeout_seconds: 240
+
+# -----------------------------------------------------------------------------
+# Evaluator — Claude. Reads stdout, extracts insights, assesses confidence.
+# -----------------------------------------------------------------------------
+evaluator:
+  provider: claude
+  model: claude-sonnet-4-6
+  max_tokens: 4096
+  timeout_seconds: 300
+
+# -----------------------------------------------------------------------------
+# Proposal builder — Claude Opus. Runs ONCE per pipeline.
+# -----------------------------------------------------------------------------
+proposal_builder:
+  provider: claude
+  model: claude-opus-4-6
+  max_tokens: 8192
+  timeout_seconds: 480
+  thinking: true
+  thinking_budget_tokens: 16000
+
+# =============================================================================
+# To restore Gemini for script_writer and plan_drafter once quota resets:
+#
+# plan_drafter:
+#   provider: gemini
+#   model: gemini-2.5-flash
+#   timeout_seconds: 240
+#
+# script_writer:
+#   provider: gemini
+#   model: gemini-2.5-flash
+#   timeout_seconds: 300
+# =============================================================================

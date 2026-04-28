@@ -1,0 +1,60 @@
+17:16:15 | INFO  | Pipeline log: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-27_171615.log
+17:16:15 | INFO  | Pipeline JSONL: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-27_171615.jsonl
+17:16:15 | INFO  |   [PIPELINE_START] repo_root=D:\Ninjatrader-Modular-Startegy | plan_dir=D:\Ninjatrader-Modular-Startegy\Backtest_Analysis_ML_plan | phase_ids=['26', '27', '28'] | skip_existing=False
+17:16:18 | INFO  |   [HEALTH_CHECK] claude=True | gemini=True
+17:16:18 | INFO  |   [SCHEDULER_TICK] iteration=1 | pending=['26', '27', '28'] | completed=[]
+17:16:18 | INFO  | ============================================================
+17:16:18 | INFO  | [PHASE 26] START — 26_ta_decision_audit.py
+17:16:18 | INFO  | ============================================================
+17:16:18 | INFO  | ============================================================
+17:16:18 | INFO  | [PHASE 27] START — 27_funnel_orphan_audit.py
+17:16:18 | INFO  | ============================================================
+17:16:18 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi
+17:16:19 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi
+17:16:19 | INFO  |   [ARTIFACT_PREVIEW] phase_id=26 | sampled=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter
+17:16:19 | INFO  |   [ARTIFACT_PREVIEW] phase_id=27 | sampled=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter
+17:16:19 | INFO  |   [PLAN-FAST] 26 — templated planning for 26_ta_decision_audit.py
+17:16:19 | DEBUG |     prompt: # Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list.
+
+## Spri
+17:16:19 | INFO  |   [PLAN-FAST] 26 — DONE (0.0s) — templated prompt ready (10353 chars)
+17:16:19 | INFO  |   [WRITE] 26 — Gemini writing 26_ta_decision_audit.py
+17:16:19 | INFO  |   [PLAN-FAST] 27 — templated planning for 27_funnel_orphan_audit.py
+17:16:19 | DEBUG |     prompt: # Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list.
+
+## Spri
+17:16:19 | INFO  |   [PLAN-FAST] 27 — DONE (0.0s) — templated prompt ready (10353 chars)
+17:16:19 | INFO  |   [WRITE] 26 — Gemini writing 26_ta_decision_audit.py
+17:16:19 | INFO  |   [WRITE] 27 — Gemini writing 27_funnel_orphan_audit.py
+17:16:19 | INFO  |   [WRITE] 27 — Gemini writing 27_funnel_orphan_audit.py
+17:18:32 | INFO  |   [WRITE] 26 — DONE (133.0s) — Script written (32661 chars, 591 lines)
+17:18:32 | DEBUG |     response: ```python
+import pandas as pd
+import numpy as np
+from pathlib import Path
+import re
+from datetime import timedelta, datetime
+
+# --- Configuration ---
+REPO_ROOT = Path("D:/Ninjatrader-Modular-Startegy")
+ARTIFACTS_DIR = REPO_ROOT / "Analysis" / "artifacts"
+SCRIPTS_DIR = REPO_ROOT / "Analysis" / "scrip
+17:18:32 | INFO  |   [WRITE] 26 — DONE (0.0s) — Script written (32661 chars, 591 lines)
+17:18:54 | INFO  |   [WRITE] 27 — DONE (154.9s) — Script written (26961 chars, 535 lines)
+17:18:54 | DEBUG |     response: ```python
+# Analysis/scripts/23_exit_profile.py
+import pandas as pd
+import numpy as np
+import re
+from pathlib import Path
+from datetime import timedelta
+import math
+
+# --- Configuration ---
+REPO_ROOT = Path(__file__).resolve().parents[2] # Adjust as needed for your repo structure
+ARTIFACTS_DIR = REP
+17:18:54 | INFO  |   [WRITE] 27 — DONE (0.0s) — Script written (26961 chars, 535 lines)

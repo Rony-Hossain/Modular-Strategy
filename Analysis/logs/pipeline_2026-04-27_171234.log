@@ -1,0 +1,36 @@
+17:12:34 | INFO  | Pipeline log: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-27_171234.log
+17:12:34 | INFO  | Pipeline JSONL: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-27_171234.jsonl
+17:12:34 | INFO  |   [PIPELINE_START] repo_root=D:\Ninjatrader-Modular-Startegy | plan_dir=D:\Ninjatrader-Modular-Startegy\Backtest_Analysis_ML_plan | phase_ids=['26', '27', '28'] | skip_existing=False
+17:12:37 | INFO  |   [HEALTH_CHECK] claude=True | gemini=True
+17:12:37 | INFO  |   [SCHEDULER_TICK] iteration=1 | pending=['26', '27', '28'] | completed=[]
+17:12:37 | INFO  | ============================================================
+17:12:37 | INFO  | [PHASE 26] START — 26_ta_decision_audit.py
+17:12:37 | INFO  | ============================================================
+17:12:37 | INFO  | ============================================================
+17:12:37 | INFO  | [PHASE 27] START — 27_funnel_orphan_audit.py
+17:12:37 | INFO  | ============================================================
+17:12:38 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi
+17:12:38 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi
+17:12:38 | INFO  |   [ARTIFACT_PREVIEW] phase_id=26 | sampled=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter
+17:12:38 | INFO  |   [ARTIFACT_PREVIEW] phase_id=27 | sampled=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter
+17:12:38 | INFO  |   [PLAN-FAST] 26 — templated planning for 26_ta_decision_audit.py
+17:12:38 | DEBUG |     prompt: # Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list.
+
+## Spri
+17:12:38 | INFO  |   [PLAN-FAST] 26 — DONE (0.0s) — templated prompt ready (7269 chars)
+17:12:38 | INFO  |   [PLAN-FAST] 27 — templated planning for 27_funnel_orphan_audit.py
+17:12:38 | DEBUG |     prompt: # Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list.
+
+## Spri
+17:12:38 | INFO  |   [PLAN-FAST] 27 — DONE (0.0s) — templated prompt ready (7269 chars)
+17:12:38 | INFO  |   [WRITE] 26 — Gemini writing 26_ta_decision_audit.py
+17:12:38 | INFO  |   [WRITE] 27 — Gemini writing 27_funnel_orphan_audit.py
+17:12:41 | ERROR |   [ERROR] 26 — Parallel phase failed: ActivityError: Activity task failed
+17:12:41 | ERROR |   [ERROR] 27 — Parallel phase failed: ActivityError: Activity task failed
+17:12:41 | INFO  |   [PHASE_FAILED] phase_id=26 | error=Activity task failed
+17:12:41 | INFO  |   [PHASE_FAILED] phase_id=27 | error=Activity task failed
+17:12:41 | INFO  |   [SCHEDULER_TICK] iteration=2 | pending=['28'] | completed=[]

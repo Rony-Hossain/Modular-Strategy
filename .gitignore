@@ -2,7 +2,7 @@
 .claude/
 .claude-flow/
 .swarm/
-.Analysis/__pycache__
+**/__pycache__/
 backtest/
 *.csv
 CLAUDE.md
@@ -16,6 +16,7 @@ tests/
 *.exe
 *.dll
 *.pdb
+**/.env
 
 # Visual Studio / IDE related
 .vs/

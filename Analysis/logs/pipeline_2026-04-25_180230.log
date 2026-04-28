@@ -1,0 +1,5 @@
+18:02:30 | INFO  | Pipeline log: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-25_180230.log
+18:02:30 | INFO  | Pipeline JSONL: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-25_180230.jsonl
+18:02:30 | INFO  |   [PIPELINE_START] repo_root=D:\Ninjatrader-Modular-Startegy | plan_dir=D:\Ninjatrader-Modular-Startegy\Backtest_Analysis_ML_plan | phase_ids=['26', '27', '28'] | skip_existing=False
+18:02:38 | INFO  |   [HEALTH_CHECK] claude=True | gemini=False
+18:02:38 | ERROR |   [ERROR] startup — Provider(s) unavailable: ['gemini']

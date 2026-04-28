@@ -1,0 +1,79 @@
+{
+  "LAYER_A_H4": {
+    "current": 14,
+    "proposed": 14,
+    "importance_pct": 25.0,
+    "shap_direction": -0.0011,
+    "reason": "importance OK (25.0%), keeping"
+  },
+  "LAYER_A_H2": {
+    "current": 10,
+    "proposed": 10,
+    "importance_pct": 25.0,
+    "shap_direction": -0.0011,
+    "reason": "importance OK (25.0%), keeping"
+  },
+  "LAYER_A_H1": {
+    "current": 6,
+    "proposed": 6,
+    "importance_pct": 25.0,
+    "shap_direction": -0.0011,
+    "reason": "importance OK (25.0%), keeping"
+  },
+  "LAYER_B_MAX_CAP": {
+    "current": 40,
+    "proposed": 40,
+    "importance_pct": 27.8,
+    "shap_direction": -0.0021,
+    "reason": "importance OK (27.8%), keeping"
+  },
+  "PROXY_BAR_DELTA": {
+    "current": 7,
+    "proposed": 9,
+    "importance_pct": 35.5,
+    "shap_direction": -0.005,
+    "reason": "high importance (35.5%), increasing"
+  },
+  "PROXY_REGIME": {
+    "current": 6,
+    "proposed": 7,
+    "importance_pct": 35.5,
+    "shap_direction": -0.005,
+    "reason": "high importance (35.5%), increasing"
+  },
+  "PROXY_VWAP_SIDE": {
+    "current": 5,
+    "proposed": 6,
+    "importance_pct": 35.5,
+    "shap_direction": -0.005,
+    "reason": "high importance (35.5%), increasing"
+  },
+  "PROXY_H1_BAR_DIR": {
+    "current": 4,
+    "proposed": 5,
+    "importance_pct": 35.5,
+    "shap_direction": -0.005,
+    "reason": "high importance (35.5%), increasing"
+  },
+  "LAYER_C_DIVERGENCE": {
+    "current": 15,
+    "proposed": 19,
+    "importance_pct": 35.5,
+    "shap_direction": -0.005,
+    "reason": "high importance (35.5%), increasing"
+  },
+  "LAYER_D_FULL_STRUCT": {
+    "current": 12,
+    "proposed": 12,
+    "importance_pct": 11.8,
+    "shap_direction": 0.0014,
+    "reason": "importance OK (11.8%), keeping"
+  },
+  "LAYER_D_TREND_ONLY": {
+    "current": 8,
+    "proposed": 8,
+    "importance_pct": 11.8,
+    "shap_direction": 0.0014,
+    "reason": "importance OK (11.8%), keeping"
+  }
+}

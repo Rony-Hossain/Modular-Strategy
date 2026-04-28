@@ -1,0 +1,9 @@
+05:07:45 | INFO  | Pipeline log: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-25_050745.log
+05:07:45 | INFO  | Pipeline JSONL: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-25_050745.jsonl
+05:07:45 | INFO  |   [PIPELINE_START] repo_root=D:\Ninjatrader-Modular-Startegy | plan_dir=D:\Ninjatrader-Modular-Startegy\Backtest_Analysis_ML_plan | phase_ids=['25'] | skip_existing=False
+05:07:46 | INFO  |   [HEALTH_CHECK] gemini=True
+05:07:46 | INFO  |   [SCHEDULER_TICK] iteration=1 | pending=['25'] | completed=[]
+05:07:46 | INFO  | ============================================================
+05:07:46 | INFO  | [PHASE 25] START — 25_zone_hygiene.py
+05:07:46 | INFO  | ============================================================
+05:08:13 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi

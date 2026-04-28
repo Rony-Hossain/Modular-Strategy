@@ -44,8 +44,9 @@ def main():
 
     # [PARSE]
     print("[PARSE] Joining datasets...")
-    sig_link = sig[['signal_id', 'trade_id']]
-    rw_linked = rw.merge(sig_link, left_on='eval_id', right_on='signal_id', how='inner')
+    # Join rank_win → signals on (conditionsetid, bar), then → trade_lifecycle on trade_id
+    traded = sig[sig['traded'] == True][['signal_id', 'trade_id', 'conditionsetid', 'bar']].copy()
+    rw_linked = rw.merge(traded, on=['conditionsetid', 'bar'], how='inner')
     df = rw_linked.merge(tl[['trade_id', 'realized_pnl_$', 'exit_subtype']], on='trade_id', how='inner')
     df['is_win'] = (df['realized_pnl_$'] > 5).astype(int)
     print(f"  Join complete. Analyzing {len(df)} trades with score data.")
@@ -99,11 +100,15 @@ def main():
         token_impact.append({
             'token': token, 'count': present_mask.sum(), 'avg_pnl_present': avg_pnl_present, 'avg_pnl_absent': avg_pnl_absent, 'impact': avg_pnl_present - avg_pnl_absent
         })
-    impact_df = pd.DataFrame(token_impact).sort_values('impact', ascending=False)
-    print("Top 10 Good Tokens:")
-    print(impact_df.head(10))
-    print("\nTop 10 Bad Tokens:")
-    print(impact_df.tail(10))
+    impact_df = pd.DataFrame(token_impact)
+    if not impact_df.empty and 'impact' in impact_df.columns:
+        impact_df = impact_df.sort_values('impact', ascending=False)
+        print("Top 10 Good Tokens:")
+        print(impact_df.head(10))
+        print("\nTop 10 Bad Tokens:")
+        print(impact_df.tail(10))
+    else:
+        print("  No token data available (0 matched trades).")
 
     # [CHECK]
     neg_layers = layer_df[layer_df['rho_pnl'] < 0]['layer'].tolist()

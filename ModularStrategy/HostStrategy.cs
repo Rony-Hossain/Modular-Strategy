@@ -283,6 +283,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 _forwardTracker?.FlushRemaining(Time[0], CurrentBar);
                 _log?.SessionClose(Time[0]);
+                BacktestExporter.ExportBacktestReport(this);
                 _ui?.DisposeResources();
                 _log?.Dispose();
             }

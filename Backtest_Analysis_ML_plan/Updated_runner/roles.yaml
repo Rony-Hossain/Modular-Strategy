@@ -1,0 +1,92 @@
+# =============================================================================
+# roles.yaml — pipeline LLM role configuration (v3 — Claude-paid / Gemini-free)
+# =============================================================================
+#
+# Cost strategy:
+#   - Claude API ($) handles every role where reasoning matters
+#   - Gemini Flash (FREE TIER) handles the mechanical work
+#   - Avoids gemini-2.5-pro entirely because its free-tier cap (50/day)
+#     dies on a single full pipeline run
+#
+# Required env vars in .env:
+#   ANTHROPIC_API_KEY=sk-ant-...      (console.anthropic.com)
+#   ANTHROPIC_MODEL=claude-sonnet-4-6 (workhorse model)
+#   GEMINI_API_KEY=...                (free tier is fine — only Flash used)
+#
+# Per-run cost: ~$1.50-$3 on Claude. $0 on Gemini.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Plan drafter — Gemini Flash reads the plan doc and produces a structured
+# draft. Claude critiques it next, so depth isn't required here.
+# -----------------------------------------------------------------------------
+plan_drafter:
+  provider: gemini
+  model: gemini-2.5-flash
+  timeout_seconds: 240
+
+# -----------------------------------------------------------------------------
+# Planner — Claude critiques the draft and emits the final writer prompt.
+# Sees a 5kb critique brief, not the full context. Prompt caching active.
+# -----------------------------------------------------------------------------
+planner:
+  provider: claude
+  model: claude-sonnet-4-6
+  max_tokens: 4096
+  timeout_seconds: 300
+  thinking: false
+
+# -----------------------------------------------------------------------------
+# Script writer — Gemini Flash. Mechanical translation from spec to code.
+# Cheap, fast, free.
+# -----------------------------------------------------------------------------
+script_writer:
+  provider: gemini
+  model: gemini-2.5-flash
+  timeout_seconds: 300
+
+# -----------------------------------------------------------------------------
+# Reviewer — Claude. Local validator runs first; reviewer focuses on
+# analytical-depth issues a regex can't catch.
+# -----------------------------------------------------------------------------
+reviewer:
+  provider: claude
+  model: claude-sonnet-4-6
+  max_tokens: 2048
+  timeout_seconds: 240
+
+# -----------------------------------------------------------------------------
+# Evaluator — Claude. Reads stdout, extracts insights, assesses confidence.
+# -----------------------------------------------------------------------------
+evaluator:
+  provider: claude
+  model: claude-sonnet-4-6
+  max_tokens: 4096
+  timeout_seconds: 300
+
+# -----------------------------------------------------------------------------
+# Proposal builder — Claude Opus. Runs ONCE per pipeline. Highest-leverage
+# call in the system. Worth the premium.
+# -----------------------------------------------------------------------------
+proposal_builder:
+  provider: claude
+  model: claude-opus-4-7
+  max_tokens: 8192
+  timeout_seconds: 480
+  thinking: true
+  thinking_budget_tokens: 16000
+
+# =============================================================================
+# Tuning notes:
+#
+# To go cheaper: change planner/reviewer/evaluator from claude-sonnet-4-6
+#   to claude-haiku-4-5. Drops cost ~3x but reviewer accuracy may suffer.
+#
+# To go more rigorous: enable thinking on the planner — set thinking: true
+#   and add thinking_budget_tokens: 8000. ~2x cost on planner calls but
+#   the editor's critique is the load-bearing part of the architecture.
+#
+# If you DO upgrade Gemini to Tier 1 paid later: change plan_drafter's
+#   model from gemini-2.5-flash to gemini-2.5-pro and add thinking: true.
+#   Claude editor will have less work to do, slightly cheaper Claude calls.
+# =============================================================================

@@ -92,16 +92,30 @@ def main():
         ts_str = row['Timestamp'].strftime('%Y%m%d_%H%M')
         base = f"{row['ConditionSetId']}:{ts_str}:{row['Bar']}"
         if row['Tag'] == 'SIGNAL_REJECTED':
-            parts = base.split(':', 1)
-            return f"{parts[0]}:REJ:{parts[1]}"
+            return f"{base}:REJ"
         return base
+
+    # Normalize external signal IDs (from Label columns)
+    def normalize_signal_id(sid):
+        if not isinstance(sid, str): return sid
+        # Handle formats like CSID:YYYYMMDD:BAR:REJ or CSID:YYYYMMDD_HHMM:BAR
+        # Convert all to CSID:YYYYMMDD:BAR[:REJ] (Drop HHMM for max compatibility)
+        parts = sid.split(':')
+        if len(parts) >= 3:
+            csid = parts[0]
+            date_part = parts[1].split('_')[0] # Drop _HHMM if present
+            bar = parts[2]
+            suffix = ":REJ" if (len(parts) > 3 and 'REJ' in parts[3]) or ('REJ' in parts[1]) else ""
+            return f"{csid}:{date_part}:{bar}{suffix}"
+        return sid
 
     # TABLE A: signals
     print("  Processing Table A: signals.parquet")
     sig_tags = ['SIGNAL_ACCEPTED', 'SIGNAL_REJECTED']
     signals_df = df[df['Tag'].isin(sig_tags)].copy()
-    signals_df['signal_id'] = signals_df.apply(make_signal_id, axis=1)
-    signals_df['trade_id'] = signals_df['signal_id'].apply(normalize_trade_id)
+    signals_df['signal_id_raw'] = signals_df.apply(make_signal_id, axis=1)
+    signals_df['signal_id'] = signals_df['signal_id_raw'].apply(normalize_signal_id)
+    signals_df['trade_id'] = signals_df['signal_id'].apply(lambda x: x.split(':REJ')[0])
     signals_df['traded'] = signals_df['Tag'] == 'SIGNAL_ACCEPTED'
     
     ctx_parsed = signals_df['Detail'].apply(parse_context).apply(pd.Series)
@@ -141,30 +155,52 @@ def main():
         'H4B': 'h4b', 'BDIV': 'touch_bdiv', 'REGIME': 'touch_regime', 'ATR': 'atr', 'HASVOL': 'touch_hasvol'
     }
     touch_df = touch_df.rename(columns=touch_rename)
-    # Filter columns to those that actually exist in touch_df
-    available_touch_cols = [c for c in touch_rename.values() if c in touch_df.columns]
     signal_touch = signals_df.merge(
-        touch_df[['Bar', 'Source', 'ConditionSetId'] + available_touch_cols],
+        touch_df[['Bar', 'Source', 'ConditionSetId'] + [c for c in touch_rename.values() if c in touch_df.columns]],
         left_on=['bar', 'source', 'conditionsetid'],
         right_on=['Bar', 'Source', 'ConditionSetId'],
         how='left'
     )
-    # Ensure cols_b only includes columns present in signal_touch
-    cols_b = ['signal_id', 'trade_id'] + [c for c in available_touch_cols if c in signal_touch.columns]
+    cols_b = ['signal_id', 'trade_id'] + [c for c in touch_rename.values() if c in signal_touch.columns]
     signal_touch_final = signal_touch[cols_b]
 
     # TABLE C: outcomes
-    print("  Processing Table C: outcomes.parquet")
+    print("  Processing Table C: outcomes.parquet (handling column shift)")
     outcome_raw = df[df['Tag'] == 'TOUCH_OUTCOME'].copy()
-    outcome_feats = outcome_raw['Detail'].apply(parse_kv).apply(pd.Series)
-    outcome_df = pd.concat([outcome_raw, outcome_feats], axis=1)
-    outcome_df = outcome_df.rename(columns={
-        'Timestamp': 'outcome_timestamp', 'Bar': 'outcome_bar', 'Label': 'signal_id',
-        'SIM_PNL': 'sim_pnl', 'MFE': 'mfe', 'MAE': 'mae', 'HIT_STOP': 'hit_stop', 
-        'HIT_TARGET': 'hit_target', 'FIRST_HIT': 'first_hit', 'BARS_TO_HIT': 'bars_to_hit',
-        'CLOSE_END': 'close_end', 'WINDOW_BARS': 'window_bars'
-    })
-    outcome_df['trade_id'] = outcome_df['signal_id'].apply(normalize_trade_id)
+    
+    def parse_outcome_row(row):
+        # Handle logger shift: if Label is 'STOP' or 'TARGET', then GateReason holds the real Label
+        label_val = str(row['Label'])
+        gate_val = str(row['GateReason'])
+        detail_val = str(row['Detail'])
+        
+        if label_val in ['STOP', 'TARGET', 'NONE']:
+            # Shifted: Real Label is in GateReason, Detail is Label, Detail KVPs are in a virtual column or appended
+            # pd.read_csv usually puts the overflow into 'Detail' or creates unnamed columns.
+            # But based on our check, it was: GateReason=SignalID, Label=STOP, Detail=MFE=...
+            real_sid = gate_val
+            first_hit = label_val
+            kvp_str = detail_val
+        else:
+            real_sid = label_val
+            first_hit = detail_val.split(',')[0] if ',' in detail_val else 'UNKNOWN'
+            kvp_str = detail_val
+            
+        res = parse_kv(kvp_str)
+        res['signal_id'] = normalize_signal_id(real_sid)
+        res['first_hit'] = first_hit
+        res['outcome_timestamp'] = row['Timestamp']
+        res['outcome_bar'] = row['Bar']
+        return pd.Series(res)
+
+    outcome_df = outcome_raw.apply(parse_outcome_row, axis=1)
+    outcome_df['trade_id'] = outcome_df['signal_id'].apply(lambda x: x.split(':REJ')[0] if isinstance(x, str) else x)
+    
+    # Ensure all required columns exist
+    for c in ['sim_pnl', 'mfe', 'mae', 'hit_stop', 'hit_target', 'bars_to_hit', 'close_end', 'window_bars']:
+        if c.upper() in outcome_df.columns: outcome_df[c] = outcome_df[c.upper()]
+        if c not in outcome_df.columns: outcome_df[c] = np.nan
+        
     cols_c = ['signal_id', 'trade_id', 'outcome_timestamp', 'outcome_bar', 'sim_pnl', 'mfe', 'mae', 'hit_stop', 'hit_target', 'first_hit', 'bars_to_hit', 'close_end', 'window_bars']
     outcome_final = outcome_df[cols_c]
 
@@ -272,11 +308,11 @@ def main():
         if not m: return {}
         cid = m.group(1)
         kv = parse_kv(m.group(2))
-        return {'condition_set_id': cid, 'layer_a': kv.get('A'), 'layer_b': kv.get('B'), 'layer_c': kv.get('C'), 'layer_d': kv.get('D'), 'penalty': kv.get('Pen'), 'net_score': kv.get('Net'), 'mult': kv.get('Mult')}
+        return {'condition_set_id': cid, 'layer_a': kv.get('A'), 'layer_b': kv.get('B'), 'layer_c': kv.get('C'), 'layer_d': kv.get('D'), 'bonus': kv.get('Bon', 0), 'penalty': kv.get('Pen'), 'net_score': kv.get('Net'), 'mult': kv.get('Mult')}
     weak_feats = weak_raw['Detail'].apply(parse_rank_weak).apply(pd.Series)
     rank_weak_final = pd.concat([weak_raw[['Timestamp', 'Bar']], weak_feats], axis=1)
     rank_scores_final = eval_final.merge(rank_weak_final.drop(columns=['Bar']), left_on=['timestamp', 'conditionsetid'], right_on=['Timestamp', 'condition_set_id'], how='inner')
-    rank_scores_final = rank_scores_final[['eval_id', 'timestamp', 'bar', 'conditionsetid', 'layer_a', 'layer_b', 'layer_c', 'layer_d', 'penalty', 'net_score', 'mult']]
+    rank_scores_final = rank_scores_final[['eval_id', 'timestamp', 'bar', 'conditionsetid', 'layer_a', 'layer_b', 'layer_c', 'layer_d', 'bonus', 'penalty', 'net_score', 'mult']]
 
     # rank_win
     win_raw = warn_raw[warn_raw['Detail'].str.startswith('RANK_WIN', na=False)].copy()
@@ -287,7 +323,7 @@ def main():
         cid = m.group(1)
         kv = parse_kv(m.group(2))
         tokens = m.group(3)
-        res = {'condition_set_id': cid, 'raw_score': kv.get('Raw'), 'layer_a': kv.get('A'), 'layer_b': kv.get('B'), 'layer_c': kv.get('C'), 'layer_d': kv.get('D'), 'penalty': kv.get('Pen'), 'net_score': kv.get('Net'), 'mult': kv.get('Mult'), 'final_score': kv.get('Final')}
+        res = {'condition_set_id': cid, 'raw_score': kv.get('Raw'), 'layer_a': kv.get('A'), 'layer_b': kv.get('B'), 'layer_c': kv.get('C'), 'layer_d': kv.get('D'), 'bonus': kv.get('Bon', 0), 'penalty': kv.get('Pen'), 'net_score': kv.get('Net'), 'mult': kv.get('Mult'), 'final_score': kv.get('Final')}
         for t in ['A', 'B', 'C', 'D']:
             tm = re.search(fr'{t}:([^ ]+)', tokens)
             res[f'{t.lower()}_tokens'] = tm.group(1) if tm else np.nan
@@ -296,7 +332,7 @@ def main():
     rank_win_final = pd.concat([win_raw[['Timestamp', 'Bar']], win_feats], axis=1)
     # Join with EVAL to get eval_id
     rank_win_final = eval_final.merge(rank_win_final.drop(columns=['Bar']), left_on=['timestamp', 'conditionsetid'], right_on=['Timestamp', 'condition_set_id'], how='inner')
-    rank_win_final = rank_win_final[['eval_id', 'timestamp', 'bar', 'conditionsetid', 'raw_score', 'layer_a', 'layer_b', 'layer_c', 'layer_d', 'penalty', 'net_score', 'mult', 'final_score', 'a_tokens', 'b_tokens', 'c_tokens', 'd_tokens']]
+    rank_win_final = rank_win_final[['eval_id', 'timestamp', 'bar', 'conditionsetid', 'raw_score', 'layer_a', 'layer_b', 'layer_c', 'layer_d', 'bonus', 'penalty', 'net_score', 'mult', 'final_score', 'a_tokens', 'b_tokens', 'c_tokens', 'd_tokens']]
 
     # rank_veto
     veto_raw = warn_raw[warn_raw['Detail'].str.startswith('RANK_VETO', na=False)].copy()
@@ -307,13 +343,13 @@ def main():
         cid = m.group(1)
         dir_sign = m.group(2)
         kv = parse_kv(m.group(3))
-        return {'condition_set_id': cid, 'direction': dir_sign, 'layer_a': kv.get('A'), 'layer_b': kv.get('B'), 'layer_c': kv.get('C'), 'layer_d': kv.get('D'), 'penalty': kv.get('Pen'), 'net_score': kv.get('Net')}
+        return {'condition_set_id': cid, 'direction': dir_sign, 'layer_a': kv.get('A'), 'layer_b': kv.get('B'), 'layer_c': kv.get('C'), 'layer_d': kv.get('D'), 'bonus': kv.get('Bon', 0), 'penalty': kv.get('Pen'), 'net_score': kv.get('Net')}
     veto_feats = veto_raw['Detail'].apply(parse_rank_veto).apply(pd.Series)
     rank_veto_final = pd.concat([veto_raw[['Timestamp', 'Bar']], veto_feats], axis=1)
     # Join with EVAL to get eval_id
     rank_veto_final = eval_final.merge(rank_veto_final.drop(columns=['Bar']), left_on=['timestamp', 'conditionsetid'], right_on=['Timestamp', 'condition_set_id'], how='inner', suffixes=('', '_veto'))
     # Use direction_veto or similar if name collision occurred, but here we explicitly select
-    rank_veto_final = rank_veto_final[['eval_id', 'timestamp', 'bar', 'conditionsetid', 'direction', 'layer_a', 'layer_b', 'layer_c', 'layer_d', 'penalty', 'net_score']]
+    rank_veto_final = rank_veto_final[['eval_id', 'timestamp', 'bar', 'conditionsetid', 'direction', 'layer_a', 'layer_b', 'layer_c', 'layer_d', 'bonus', 'penalty', 'net_score']]
 
     # SLIP_EVENTS
     print("  Processing slip_events.parquet")

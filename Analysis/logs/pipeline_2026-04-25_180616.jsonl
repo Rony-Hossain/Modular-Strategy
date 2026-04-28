@@ -1,0 +1,3 @@
+{"ts": "2026-04-25T22:06:16.432225+00:00", "event": "PIPELINE_START", "repo_root": "D:\\Ninjatrader-Modular-Startegy", "plan_dir": "D:\\Ninjatrader-Modular-Startegy\\Backtest_Analysis_ML_plan", "phase_ids": ["26", "27", "28"], "skip_existing": false}
+{"ts": "2026-04-25T22:06:23.962976+00:00", "event": "HEALTH_CHECK", "claude": true, "gemini": false}
+{"ts": "2026-04-25T22:06:23.964454+00:00", "event": "error", "phase_id": "startup", "message": "Provider(s) unavailable: ['gemini']"}

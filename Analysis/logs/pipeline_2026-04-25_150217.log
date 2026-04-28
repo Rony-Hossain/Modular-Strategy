@@ -1,0 +1,24 @@
+15:02:17 | INFO  | Pipeline log: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-25_150217.log
+15:02:17 | INFO  | Pipeline JSONL: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-25_150217.jsonl
+15:02:17 | INFO  |   [PIPELINE_START] repo_root=D:\Ninjatrader-Modular-Startegy | plan_dir=D:\Ninjatrader-Modular-Startegy\Backtest_Analysis_ML_plan | phase_ids=['26'] | skip_existing=False
+15:02:19 | INFO  |   [HEALTH_CHECK] gemini=True
+15:02:19 | INFO  |   [SCHEDULER_TICK] iteration=1 | pending=['26'] | completed=[]
+15:02:19 | INFO  | ============================================================
+15:02:19 | INFO  | [PHASE 26] START — 26_ta_decision_audit.py
+15:02:19 | INFO  | ============================================================
+15:02:19 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi
+15:02:19 | INFO  |   [ARTIFACT_PREVIEW] phase_id=26 | sampled=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter
+15:02:20 | INFO  |   [PLAN] 26 — [gemini->fallback(gemini)] planning 26_ta_decision_audit.py
+15:02:20 | DEBUG |     prompt: # Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list.
+
+## Spri
+15:02:50 | INFO  |   [PLAN] 26 — [gemini->fallback(gemini)] planning 26_ta_decision_audit.py
+15:02:50 | DEBUG |     prompt: # Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list.
+
+## Spri
+15:02:52 | INFO  |   [PLAN] 26 — DONE (1.5s) — Prompt built (8944 chars)
+15:02:52 | DEBUG |     response: MISSION: The mission is to conduct a quantitative audit of the real-time trade management decisions captured by TA_DECISION events in the Log.csv. The primary goal is to identify patterns where TA_DECISION entries (Hold, Exit, Tighten) correlate with suboptimal trade outcomes or indicate failures in

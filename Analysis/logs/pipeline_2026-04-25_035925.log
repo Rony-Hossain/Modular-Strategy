@@ -1,0 +1,23 @@
+03:59:25 | INFO  | Pipeline log: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-25_035925.log
+03:59:25 | INFO  | Pipeline JSONL: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-25_035925.jsonl
+03:59:25 | INFO  |   [PIPELINE_START] repo_root=D:\Ninjatrader-Modular-Startegy | plan_dir=D:\Ninjatrader-Modular-Startegy\Backtest_Analysis_ML_plan | phase_ids=['25'] | skip_existing=False
+03:59:33 | INFO  |   [HEALTH_CHECK] claude=OK
+03:59:33 | INFO  |   [SCHEDULER_TICK] iteration=1 | pending=['25'] | completed=[]
+03:59:33 | INFO  | ============================================================
+03:59:33 | INFO  | [PHASE 25] START — 25_zone_hygiene.py
+03:59:33 | INFO  | ============================================================
+03:59:33 | WARNING |   [WARN] artifacts — Failed to sample bos_choch_audit.parquet: No module named 'pyarrow'
+03:59:33 | WARNING |   [WARN] artifacts — Failed to sample context_bars.parquet: No module named 'pyarrow'
+03:59:33 | WARNING |   [WARN] artifacts — Failed to sample dynamic_be.parquet: No module named 'pyarrow'
+03:59:33 | WARNING |   [WARN] artifacts — Failed to sample evals.parquet: No module named 'pyarrow'
+03:59:33 | WARNING |   [WARN] artifacts — Failed to sample filter_audit_matrix.parquet: No module named 'pyarrow'
+03:59:33 | WARNING |   [WARN] artifacts — Failed to sample flow_bars.parquet: No module named 'pyarrow'
+03:59:33 | WARNING |   [WARN] artifacts — Failed to sample forward_bars.parquet: No module named 'pyarrow'
+03:59:33 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi
+03:59:33 | INFO  |   [ARTIFACT_PREVIEW] phase_id=25 | sampled=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter
+03:59:33 | INFO  |   [PLAN] 25 — Claude planning 25_zone_hygiene.py
+03:59:33 | DEBUG |     prompt: # Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list.
+
+## Spri

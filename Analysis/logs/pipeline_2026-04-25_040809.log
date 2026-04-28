@@ -1,0 +1,4 @@
+04:08:09 | INFO  | Pipeline log: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-25_040809.log
+04:08:09 | INFO  | Pipeline JSONL: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-25_040809.jsonl
+04:08:09 | INFO  |   [PIPELINE_START] repo_root=D:\Ninjatrader-Modular-Startegy | plan_dir=D:\Ninjatrader-Modular-Startegy\Backtest_Analysis_ML_plan | phase_ids=['25'] | skip_existing=False
+04:08:15 | ERROR |   [ERROR] startup — Claude CLI unavailable

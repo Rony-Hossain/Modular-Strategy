@@ -1,0 +1,175 @@
+This pipeline is designed to automate the **Strategy Optimization & Self-Healing Loop** for the NinjaTrader system. In a production Quant environment, this would be used to automatically tune `StrategyConfig.Modules` constants or fix logic in `ConditionSets` based on walk-forward performance.
+
+### 1. models.py
+Defining the data structures for the performance metrics and the source code modifications.
+
+```python
+from pydantic import BaseModel, Field
+from typing import List, Dict, Optional
+from datetime import datetime
+
+class QuantReport(BaseModel):
+    strategy_id: str
+    net_profit: float
+    profit_factor: float
+    sharpe_ratio: float
+    max_drawdown: float
+    win_rate: float
+    total_trades: int
+    session_perf_map: Dict[str, float] = Field(description="Per-Set performance (e.g., SMC_BOS_v1)")
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+class CodePatch(BaseModel):
+    file_path: str  # Path relative to NinjaTrader/bin/Custom/Strategies/...
+    change_type: str # "REPLACE_CONSTANT" | "INJECT_METHOD" | "REWRITE_LOGIC"
+    target_class: str
+    old_content: Optional[str] = None
+    new_content: str
+    reasoning: str
+```
+
+### 2. activities.py
+These skeletons represent the integration points with the NinjaTrader CLI and the file system.
+
+```python
+import os
+import re
+from temporalio import activity
+from models import QuantReport, CodePatch
+
+# Mocked root path for the 55-file system
+NT_STRATEGY_ROOT = "Documents/NinjaTrader 8/bin/Custom/Strategies/BigPrintSystem"
+
+@activity.define
+async def run_backtest(instrument: str, timeframe: str) -> QuantReport:
+    """
+    Triggers NinjaTrader CLI or a headless runner to execute the strategy.
+    Maps to the 'ModularStrategy' and 'DataFeed' classes in the blueprint.
+    """
+    activity.logger.info(f"Running backtest for {instrument} on {timeframe}")
+    # Logic: subprocess.run(["NinjaTrader.Core.Console.exe", ...])
+    # For now, return mock data matching the blueprint's ScoreWeights
+    return QuantReport(
+        strategy_id="BigPrintDetector_v1",
+        net_profit=1520.0,
+        profit_factor=1.45,
+        sharpe_ratio=1.2,
+        max_drawdown=450.0,
+        win_rate=0.58,
+        total_trades=120,
+        session_perf_map={"SMC_BOS_v1": 0.8, "VWAP_RTH_v1": -0.2}
+    )
+
+@activity.define
+async def evaluate_performance(report: QuantReport) -> Optional[List[CodePatch]]:
+    """
+    Analyzes 'GradeThresholds' and 'ScoreWeights' from the blueprint.
+    If 'VWAP_RTH_v1' is failing, it suggests a patch to 'StrategyConfig.cs'.
+    """
+    patches = []
+    if report.sharpe_ratio < 1.5:
+        # Example: Realize the VWAP_REVERSION_SD_THRESHOLD is too tight
+        patches.append(CodePatch(
+            file_path="StrategyConfig.cs",
+            change_type="REPLACE_CONSTANT",
+            target_class="Modules",
+            old_content="public const double VWAP_REVERSION_SD_THRESHOLD = 1.8;",
+            new_content="public const double VWAP_REVERSION_SD_THRESHOLD = 2.2;",
+            reasoning="Low Sharpe Ratio; widening VWAP reversion bands to reduce false signals."
+        ))
+    return patches if patches else None
+
+@activity.define
+async def apply_patch(patch: CodePatch) -> bool:
+    """
+    Physically modifies the C# files.
+    Targeting specific files from the blueprint like 'StrategyConfig.cs' or 'SMCBase.cs'.
+    """
+    full_path = os.path.join(NT_STRATEGY_ROOT, patch.file_path)
+    
+    if not os.path.exists(full_path):
+        raise FileNotFoundError(f"Source file {patch.file_path} not found in blueprint root.")
+
+    with open(full_path, 'r') as f:
+        content = f.read()
+
+    if patch.change_type == "REPLACE_CONSTANT":
+        new_content = content.replace(patch.old_content, patch.new_content)
+    else:
+        # Fallback for more complex rewrites
+        new_content = patch.new_content
+
+    with open(full_path, 'w') as f:
+        f.write(new_content)
+    
+    activity.logger.info(f"Applied patch to {patch.file_path}: {patch.reasoning}")
+    return True
+```
+
+### 3. workflow.py
+The orchestration logic managing the "Backtest -> Analyze -> Patch" loop.
+
+```python
+from datetime import timedelta
+from temporalio import workflow
+from typing import List
+
+# Import activities
+with workflow.unsafe.imports_passed_through():
+    from activities import run_backtest, evaluate_performance, apply_patch
+    from models import QuantReport, CodePatch
+
+@workflow.def_name("StrategyOptimizationWorkflow")
+class StrategyOptimizationWorkflow:
+    @workflow.run
+    async def run(self, instrument: str, iterations: int) -> str:
+        current_iteration = 0
+        target_sharpe = 2.0
+        
+        while current_iteration < iterations:
+            # 1. Execute Backtest
+            report: QuantReport = await workflow.execute_activity(
+                run_backtest,
+                args=[instrument, "1-Min"],
+                start_to_close_timeout=timedelta(minutes=10)
+            )
+
+            # 2. Check Exit Condition
+            if report.sharpe_ratio >= target_sharpe:
+                return f"Optimization successful. Final Sharpe: {report.sharpe_ratio}"
+
+            # 3. Evaluate and Generate Patches
+            patches: List[CodePatch] = await workflow.execute_activity(
+                evaluate_performance,
+                args=[report],
+                start_to_close_timeout=timedelta(minutes=2)
+            )
+
+            if not patches:
+                return f"No further optimizations possible. Final Sharpe: {report.sharpe_ratio}"
+
+            # 4. Apply Patches to C# System
+            for patch in patches:
+                success = await workflow.execute_activity(
+                    apply_patch,
+                    args=[patch],
+                    start_to_close_timeout=timedelta(seconds=30)
+                )
+                
+                if not success:
+                    workflow.logger.error(f"Failed to apply patch to {patch.file_path}")
+
+            # 5. Wait for NinjaTrader to recompile (simulated)
+            await workflow.sleep(timedelta(seconds=10))
+            
+            current_iteration += 1
+
+        return "Reached maximum iterations without hitting target Sharpe."
+```
+
+### Architectural Notes for the Senior Quant:
+
+1.  **State Management**: The `workflow.py` maintains the state of the optimization. If the backtest server crashes, Temporal resumes exactly where it left off (e.g., between applying a patch and running the next backtest).
+2.  **Concurrency Control**: By using Temporal, we ensure that two optimization loops don't attempt to patch `StrategyConfig.cs` simultaneously, which would corrupt the NinjaScript compilation.
+3.  **Self-Healing Logic**: The `evaluate_performance` activity acts as the "Architect's Brain." It looks at the `session_perf_map` (generated by the C# `PerSetPerformanceTracker`) to identify which specific `IConditionSet` is dragging down the portfolio.
+4.  **Audit Trail**: Every `CodePatch` applied is recorded in the Temporal History, providing a full audit log of why a parameter (like `SMC_MIN_BOS_TICKS`) was changed in production.

@@ -1,0 +1,88 @@
+# =============================================================================
+# roles.yaml — pipeline LLM role configuration
+# =============================================================================
+#
+# Each role maps to a provider and model. Activities call get_runner(role_name)
+# and get back whatever's configured here — they don't know about Claude vs
+# Gemini specifically.
+#
+# To swap providers: edit this file and restart the worker.
+#
+# Supported providers: gemini, claude, mock
+#
+# Optional per-role keys:
+#   enabled       (bool, default true)  — set false to fail-fast if used
+#   timeout_seconds (int)                — provider call timeout
+#   thinking      (bool, gemini only)    — enables extended thinking
+#                                          (uses thinking_level=high on
+#                                          Gemini 3.x, thinking_budget=-1
+#                                          on Gemini 2.x)
+#   temperature   (float)                — sampling temperature.
+#                                          NOTE: Google recommends keeping
+#                                          temperature at default 1.0 for
+#                                          Gemini 3 models. Only override if
+#                                          you have a specific reason.
+#   fallback      (dict)                 — alt config tried if primary errors
+#   api_key_env   (str, gemini only)     — env var to read the API key from
+#                                          (default: GEMINI_API_KEY, falls
+#                                          back to Settings.GEMINI_KEYS)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Tonight's config: 100% Gemini. Claude is bypassed because of quota.
+# To restore the dual-LLM design, swap the provider/model lines for the
+# commented "claude" alternatives below.
+# -----------------------------------------------------------------------------
+
+# The "brain" — designs analysis approach, walks the 5-layer protocol,
+# enriches the prompt for the script writer.
+planner:
+  provider: gemini
+  model: gemini-3.1-pro-preview
+  thinking: true
+  timeout_seconds: 420
+  fallback:
+    provider: gemini
+    model: gemini-2.5-flash
+    timeout_seconds: 240
+# planner:                       # ← swap to this when Claude quota returns
+#   provider: claude
+#   timeout_seconds: 420
+
+# Writes the actual Python analysis script. Cheaper model is fine — this
+# is mechanical translation from spec to code.
+script_writer:
+  provider: gemini
+  model: gemini-2.5-flash
+  timeout_seconds: 300
+
+# Reviews the script before execution. Checklist task — flash is plenty.
+reviewer:
+  provider: gemini
+  model: gemini-2.5-flash
+  timeout_seconds: 300
+# reviewer:                      # ← swap to this when Claude quota returns
+#   provider: claude
+#   timeout_seconds: 300
+
+# Evaluates script output, extracts insights, decides confidence level.
+# This is reasoning, not a checklist — pro model with thinking on.
+evaluator:
+  provider: gemini
+  model: gemini-3.1-pro-preview
+  thinking: true
+  timeout_seconds: 420
+# evaluator:                     # ← swap to this when Claude quota returns
+#   provider: claude
+#   timeout_seconds: 360
+
+# Synthesizes all phase results into the final config proposal.
+# Highest-leverage call — runs once. Worth the best model with thinking.
+proposal_builder:
+  provider: gemini
+  model: gemini-3.1-pro-preview
+  thinking: true
+  timeout_seconds: 480
+# proposal_builder:              # ← swap to this when Claude quota returns
+#   provider: claude
+#   timeout_seconds: 480

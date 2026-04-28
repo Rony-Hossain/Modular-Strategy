@@ -1,0 +1,79 @@
+05:12:14 | INFO  | Pipeline log: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-25_051214.log
+05:12:14 | INFO  | Pipeline JSONL: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-25_051214.jsonl
+05:12:14 | INFO  |   [PIPELINE_START] repo_root=D:\Ninjatrader-Modular-Startegy | plan_dir=D:\Ninjatrader-Modular-Startegy\Backtest_Analysis_ML_plan | phase_ids=['25'] | skip_existing=False
+05:12:16 | INFO  |   [HEALTH_CHECK] gemini=True
+05:12:16 | INFO  |   [SCHEDULER_TICK] iteration=1 | pending=['25'] | completed=[]
+05:12:16 | INFO  | ============================================================
+05:12:16 | INFO  | [PHASE 25] START — 25_zone_hygiene.py
+05:12:16 | INFO  | ============================================================
+05:12:16 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi
+05:12:16 | INFO  |   [ARTIFACT_PREVIEW] phase_id=25 | sampled=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter
+05:12:16 | INFO  |   [PLAN] 25 — [gemini->fallback(gemini)] planning 25_zone_hygiene.py
+05:12:16 | DEBUG |     prompt: # Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list.
+
+## Spri
+05:12:41 | INFO  |   [PLAN] 25 — DONE (24.4s) — Prompt built (2397 chars)
+05:12:41 | DEBUG |     response: MISSION: As the ANALYTICAL BRAIN, your task is to identify all detectable bugs and inconsistencies related to zone management and support/resistance (SR) level integrity within the NinjaTrader strategy's C# logic, specifically impacting `ZoneManager.cs` and `SRManager.cs`. The goal is to produce a c
+05:12:41 | INFO  |   [WRITE] 25 — Gemini writing 25_zone_hygiene.py
+05:12:41 | DEBUG |     prompt: MISSION: As the ANALYTICAL BRAIN, your task is to identify all detectable bugs and inconsistencies related to zone management and support/resistance (SR) level integrity within the NinjaTrader strateg
+05:13:23 | INFO  |   [WRITE] 25 — DONE (0.0s) — Script written (47671 chars, 748 lines)
+05:13:23 | DEBUG |     response: ```python
+import pandas as pd
+import numpy as np
+from pathlib import Path
+import re
+import warnings
+from datetime import datetime, timedelta
+import sys
+import os
+import inspect
+from scipy.stats import bootstrap, t, norm
+
+# Set random seed for reproducibility
+np.random.seed(42)
+
+# --- Configuration a
+05:13:23 | INFO  |   [REVIEW] 25 — [gemini] reviewing 25_zone_hygiene.py (47671 chars)
+05:13:54 | INFO  |   [REVIEW] 25 — [gemini] reviewing 25_zone_hygiene.py (47671 chars)
+05:13:56 | INFO  |   [REVIEW] 25 — DONE (1.7s) — REJECTED: The script is rejected due to a critical omission in the 'stale zone detection' logic, failing to implement the specified condition regardin
+05:13:56 | WARNING |   [WARN] 25 — Review rejected: To address the hard reject, the most critical step is to either: 1) Clarify how 'price touching the zone' will be assessed, ideally by integrating continuous market price data as an input. Or, 2) Explicitly state in the report that this part of the stale zone detection cannot be performed with the current inputs. Additionally, consider integrating formal statistical tests for group comparisons (e.g., comparing P&L distributions between groups) to provide stronger evidence for 'insights'.
+05:14:13 | INFO  |   [REVIEW] 25 — DONE (0.0s) — APPROVED: The script provides a robust and comprehensive audit of zone hygiene and interaction, demonstrating strong error handling and the computatio
+05:14:13 | INFO  |   [RUN] 25_zone_hygiene.py — Saving and executing 25_zone_hygiene.py
+05:14:24 | INFO  |   [RUN] 25_zone_hygiene.py — DONE (11.2s) — SUCCESS — 28 artifacts
+05:14:24 | DEBUG |     response: 
+--- [INPUT] ---
+Using TICK_SIZE: 0.25, POINT_VALUE: 5.0 for calculations.
+Successfully loaded zone_lifecycle from D:\Ninjatrader-Modular-Startegy\Analysis\artifacts\zone_lifecycle.parquet.
+Successfully loaded signals from D:\Ninjatrader-Modular-Startegy\Analysis\artifacts\signals.parquet.
+Successfu
+05:14:24 | INFO  |   [EVALUATE] 25 — [gemini] evaluating 25_zone_hygiene.py output
+05:15:49 | INFO  |   [WRITE] 25 — DONE (188.0s) — Script written (28153 chars, 510 lines)
+05:15:49 | DEBUG |     response: ```python
+import pandas as pd
+import numpy as np
+import pathlib
+import re
+import pyarrow.parquet as pq # Required for pandas to_parquet/read_parquet with 'pyarrow' engine
+
+# Set numpy random seed for reproducibility
+np.random.seed(42)
+
+# Define paths using pathlib for robustness
+BASE_DIR = pathlib.P
+05:15:49 | INFO  |   [REVIEW] 25 — [gemini] reviewing 25_zone_hygiene.py (28153 chars)
+05:16:11 | INFO  |   [REVIEW] 25 — DONE (21.9s) — APPROVED: The script provides a robust framework for zone hygiene analysis, correctly handling data parsing, timestamp imputation, and a range of cons
+05:16:11 | INFO  |   [RUN] 25_zone_hygiene.py — Saving and executing 25_zone_hygiene.py
+05:16:13 | INFO  |   [RUN] 25_zone_hygiene.py — DONE (2.0s) — FAILED — 28 artifacts
+05:16:13 | DEBUG |     response: [INPUT] Loading data...
+[INPUT] Loaded Log.csv with 224000 records.
+[INPUT] Loaded zone_lifecycle.parquet with 5975 records.
+[INPUT] Loaded signals.parquet with 1239 records.
+[ERROR] Error loading schema.md: 'charmap' codec can't decode byte 0x8f in position 12305: character maps to <undefined>
+[ANO
+05:16:13 | ERROR |   [ERROR] 25_zone_hygiene.py — Script failed: Traceback (most recent call last):
+  File "C:\Users\moham\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\indexes\base.py", line 3641, in get_loc
+    return self._engine.get_loc(casted_key)
+           ~~~~~~~~~~~
+05:16:13 | INFO  |   [EVALUATE] 25 — [gemini] evaluating 25_zone_hygiene.py output (script failed)

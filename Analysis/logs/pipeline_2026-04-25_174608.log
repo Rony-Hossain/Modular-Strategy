@@ -1,0 +1,21 @@
+17:46:08 | INFO  | Pipeline log: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-25_174608.log
+17:46:08 | INFO  | Pipeline JSONL: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-25_174608.jsonl
+17:46:08 | INFO  |   [PIPELINE_START] repo_root=D:\Ninjatrader-Modular-Startegy | plan_dir=D:\Ninjatrader-Modular-Startegy\Backtest_Analysis_ML_plan | phase_ids=['26', '27', '28'] | skip_existing=False
+17:46:18 | INFO  |   [HEALTH_CHECK] claude=True | gemini=True
+17:46:18 | INFO  |   [SCHEDULER_TICK] iteration=1 | pending=['26', '27', '28'] | completed=[]
+17:46:18 | INFO  | ============================================================
+17:46:18 | INFO  | [PHASE 26] START — 26_ta_decision_audit.py
+17:46:18 | INFO  | ============================================================
+17:46:18 | INFO  | ============================================================
+17:46:18 | INFO  | [PHASE 27] START — 27_funnel_orphan_audit.py
+17:46:18 | INFO  | ============================================================
+17:46:19 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi
+17:46:19 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi
+17:46:19 | INFO  |   [ARTIFACT_PREVIEW] phase_id=26 | sampled=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter
+17:46:19 | INFO  |   [ARTIFACT_PREVIEW] phase_id=27 | sampled=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter
+17:46:20 | INFO  |   [DRAFT] 26 — [gemini->fallback(gemini)] drafting plan for 26_ta_decision_audit.py
+17:46:20 | INFO  |   [DRAFT] 27 — [gemini->fallback(gemini)] drafting plan for 27_funnel_orphan_audit.py
+17:46:21 | INFO  |   [DRAFT] 27 — [gemini->fallback(gemini)] drafting plan for 27_funnel_orphan_audit.py
+17:46:21 | INFO  |   [DRAFT] 26 — [gemini->fallback(gemini)] drafting plan for 26_ta_decision_audit.py
+17:46:23 | INFO  |   [DRAFT] 26 — [gemini->fallback(gemini)] drafting plan for 26_ta_decision_audit.py
+17:46:23 | INFO  |   [DRAFT] 27 — [gemini->fallback(gemini)] drafting plan for 27_funnel_orphan_audit.py

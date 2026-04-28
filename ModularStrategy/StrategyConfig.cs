@@ -145,6 +145,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             public const double DD_MIN_ABSORPTION_SCORE = 5.0;
             public const double DD_ATR_STOP_BUFFER      = 0.08;
             public const double DD_MIN_STOP_ATR_MULT    = 0.20;
+            public const double DD_MAX_STOP_ATR_MULT    = 1.50;
             public const int    DD_STOP_LOOKBACK_BARS   = 3;
             public const int    DD_COOLDOWN_BARS        = 8;
             public const int    DD_BASE_SCORE           = 78;
@@ -376,6 +377,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             public const double ICE_ALT_ICE_CLOSE_PCT      = 0.6;
             public const double ICE_ATR_STOP_BUFFER        = 0.06;
             public const double ICE_MIN_STOP_ATR_MULT      = 0.18;
+            public const double ICE_MAX_STOP_ATR_MULT      = 1.50;
             public const int    ICE_STOP_LOOKBACK_BARS     = 2;
             public const int    ICE_REENTRY_COOLDOWN       = 10;
             public const double ICE_MIN_T1_ATR_DIST        = 0.5;
@@ -405,6 +407,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             public const double HYBRID_MIN_ABSORP            = 20.0;
             public const double HYBRID_ATR_STOP_BUFFER       = 0.06;
             public const double HYBRID_MIN_STOP_ATR_MULT     = 0.18;
+            public const double HYBRID_MAX_STOP_ATR_MULT     = 1.50;
             public const int    HYBRID_STOP_LOOKBACK_BARS    = 3;
             public const int    HYBRID_REENTRY_COOLDOWN      = 10;
             public const double HYBRID_MIN_T1_ATR_DIST       = 0.5;
@@ -501,6 +504,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             public const double MIN_RR_RATIO         = 1.5;
             public const int    MAX_CONSECUTIVE_LOSS = 5;
             public const double MIN_STOP_TICKS       = 4.0;
+            public const double MAX_STOP_TICKS       = 200.0;
             public const int    LIMIT_FALLBACK_BARS      = 3;
             public const double T1_PARTIAL_PCT           = 0.5;
             public const int    PERF_MIN_LIFETIME_TRADES = 10;

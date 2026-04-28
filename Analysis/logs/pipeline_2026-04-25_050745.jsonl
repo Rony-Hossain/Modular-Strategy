@@ -1,0 +1,6 @@
+{"ts": "2026-04-25T09:07:45.203789+00:00", "event": "PIPELINE_START", "repo_root": "D:\\Ninjatrader-Modular-Startegy", "plan_dir": "D:\\Ninjatrader-Modular-Startegy\\Backtest_Analysis_ML_plan", "phase_ids": ["25"], "skip_existing": false}
+{"ts": "2026-04-25T09:07:46.392233+00:00", "event": "HEALTH_CHECK", "gemini": true}
+{"ts": "2026-04-25T09:07:46.477033+00:00", "event": "SCHEDULER_TICK", "iteration": 1, "pending": ["25"], "completed": []}
+{"ts": "2026-04-25T09:07:46.480406+00:00", "event": "phase_start", "phase_id": "25", "script_name": "25_zone_hygiene.py", "is_micro": false}
+{"ts": "2026-04-25T09:08:13.522506+00:00", "event": "ARTIFACT_SAMPLE", "count": 10, "files": ["bos_choch_audit.parquet", "bos_choch_summary.csv", "bos_choch_summary.md", "context_bars.parquet", "dynamic_be.parquet", "evals.parquet", "filter_audit_matrix.parquet", "filter_audit_summary.csv", "flow_bars.parquet", "forward_bars.parquet"]}
+{"ts": "2026-04-25T09:08:13.532517+00:00", "event": "ARTIFACT_PREVIEW", "phase_id": "25", "sampled": ["bos_choch_audit.parquet", "bos_choch_summary.csv", "bos_choch_summary.md", "context_bars.parquet", "dynamic_be.parquet", "evals.parquet", "filter_audit_matrix.parquet", "filter_audit_summary.csv", "flow_bars.parquet", "forward_bars.parquet"]}

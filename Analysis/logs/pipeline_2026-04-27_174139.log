@@ -1,0 +1,150 @@
+17:41:39 | INFO  | Pipeline log: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-27_174139.log
+17:41:39 | INFO  | Pipeline JSONL: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-27_174139.jsonl
+17:41:39 | INFO  |   [PIPELINE_START] repo_root=D:\Ninjatrader-Modular-Startegy | plan_dir=D:\Ninjatrader-Modular-Startegy\Backtest_Analysis_ML_plan | phase_ids=['26', '27', '28'] | skip_existing=False
+17:41:40 | INFO  |   [HEALTH_CHECK] claude=True
+17:41:40 | INFO  |   [SCHEDULER_TICK] iteration=1 | pending=['26', '27', '28'] | completed=[]
+17:41:40 | INFO  | ============================================================
+17:41:40 | INFO  | [PHASE 26] START — 26_ta_decision_audit.py
+17:41:40 | INFO  | ============================================================
+17:41:40 | INFO  | ============================================================
+17:41:40 | INFO  | [PHASE 27] START — 27_funnel_orphan_audit.py
+17:41:40 | INFO  | ============================================================
+17:41:41 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi
+17:41:41 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi
+17:41:41 | INFO  |   [ARTIFACT_PREVIEW] phase_id=26 | sampled=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter
+17:41:41 | INFO  |   [ARTIFACT_PREVIEW] phase_id=27 | sampled=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter
+17:41:41 | INFO  |   [PLAN-FAST] 26 — templated planning for 26_ta_decision_audit.py
+17:41:41 | DEBUG |     prompt: # Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list.
+
+## Spri
+17:41:41 | INFO  |   [PLAN-FAST] 26 — DONE (0.0s) — templated prompt ready (10353 chars)
+17:41:41 | INFO  |   [WRITE] 26 — Gemini writing 26_ta_decision_audit.py
+17:41:41 | INFO  |   [PLAN-FAST] 27 — templated planning for 27_funnel_orphan_audit.py
+17:41:41 | DEBUG |     prompt: # Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list.
+
+## Spri
+17:41:41 | INFO  |   [PLAN-FAST] 27 — DONE (0.0s) — templated prompt ready (10353 chars)
+17:41:41 | INFO  |   [WRITE] 27 — Gemini writing 27_funnel_orphan_audit.py
+17:41:41 | INFO  |   [WRITE] 26 — Gemini writing 26_ta_decision_audit.py
+17:41:41 | INFO  |   [WRITE] 27 — Gemini writing 27_funnel_orphan_audit.py
+17:43:06 | INFO  |   [WRITE] 27 — DONE (84.7s) — Script written (22606 chars, 540 lines)
+17:43:06 | DEBUG |     response: # Analysis/scripts/23_exit_profile.py
+import sys
+import warnings
+import re
+import json
+from pathlib import Path
+from datetime import timedelta
+
+import numpy as np
+import pandas as pd
+
+np.random.seed(42)
+warnings.filterwarnings("ignore")
+
+# ── paths ───────────────────────────────────────────────────
+17:43:06 | INFO  |   [WRITE] 27 — DONE (0.0s) — Script written (22606 chars, 540 lines)
+17:43:06 | WARNING |   [WARN] 27 — Local validation failed (attempt 1): SyntaxError at line 541: unterminated f-string literal (detected at line 541). Offending line: 'lines.append(f"- **Trades with P&'
+17:43:06 | INFO  |   [WRITE] 27 — Gemini writing 27_funnel_orphan_audit.py (with feedback)
+17:43:06 | INFO  |   [WRITE] 27 — Gemini writing 27_funnel_orphan_audit.py (with feedback)
+17:43:09 | INFO  |   [WRITE] 26 — DONE (87.5s) — Script written (22689 chars, 573 lines)
+17:43:09 | DEBUG |     response: # Analysis/scripts/23_exit_profile.py
+import warnings
+warnings.filterwarnings("ignore")
+
+import sys
+import numpy as np
+import pandas as pd
+import pathlib
+import re
+import json
+from datetime import timezone
+
+np.random.seed(42)
+
+MIN_N = 30
+
+REPO_ROOT = pathlib.Path(r"D:\Ninjatrader-Modular-Startegy")
+
+17:43:09 | INFO  |   [WRITE] 26 — DONE (0.0s) — Script written (22689 chars, 573 lines)
+17:43:09 | WARNING |   [WARN] 26 — Local validation failed (attempt 1): SyntaxError at line 574: '{' was never closed. Offending line: 'print(f"[INSIGHT] Profit factor marginally positive: {profit_factor'
+17:43:09 | INFO  |   [WRITE] 26 — Gemini writing 26_ta_decision_audit.py (with feedback)
+17:43:09 | INFO  |   [WRITE] 26 — Gemini writing 26_ta_decision_audit.py (with feedback)
+17:44:31 | INFO  |   [WRITE] 27 — DONE (84.8s) — Script written (20920 chars, 468 lines)
+17:44:31 | DEBUG |     response: # Analysis/scripts/23_exit_profile.py
+import sys
+import warnings
+import numpy as np
+import pandas as pd
+import pyarrow.parquet as pq
+from pathlib import Path
+from datetime import datetime
+
+warnings.filterwarnings("ignore")
+np.random.seed(42)
+
+# ── paths ──────────────────────────────────────────────
+17:44:31 | INFO  |   [WRITE] 27 — DONE (0.0s) — Script written (20920 chars, 468 lines)
+17:44:31 | WARNING |   [WARN] 27 — Local validation failed (attempt 2): Missing required print sections: ['[RESULT]']. Each phase script must call print() with these tags.
+17:44:31 | INFO  |   [WRITE] 27 — Gemini writing 27_funnel_orphan_audit.py (with feedback)
+17:44:31 | INFO  |   [WRITE] 27 — Gemini writing 27_funnel_orphan_audit.py (with feedback)
+17:44:32 | INFO  |   [WRITE] 26 — DONE (83.1s) — Script written (22799 chars, 569 lines)
+17:44:32 | DEBUG |     response: # Analysis/scripts/23_exit_profile.py
+import sys
+import warnings
+import numpy as np
+import pandas as pd
+import pathlib
+import re
+import json
+from datetime import timedelta
+
+warnings.filterwarnings("ignore")
+np.random.seed(42)
+
+# ── paths ──────────────────────────────────────────────────────────────
+17:44:32 | INFO  |   [WRITE] 26 — DONE (0.0s) — Script written (22799 chars, 569 lines)
+17:44:32 | WARNING |   [WARN] 26 — Local validation failed (attempt 2): Missing required print sections: ['[RESULT]']. Each phase script must call print() with these tags.
+17:44:32 | INFO  |   [WRITE] 26 — Gemini writing 26_ta_decision_audit.py (with feedback)
+17:44:32 | INFO  |   [WRITE] 26 — Gemini writing 26_ta_decision_audit.py (with feedback)
+17:45:53 | INFO  |   [WRITE] 26 — DONE (81.5s) — Script written (22154 chars, 515 lines)
+17:45:53 | DEBUG |     response: # Analysis/scripts/23_exit_profile.py
+import sys
+import warnings
+import numpy as np
+import pandas as pd
+import pathlib
+import re
+import json
+
+warnings.filterwarnings("ignore")
+np.random.seed(42)
+
+# ── paths ────────────────────────────────────────────────────────────────────
+REPO_ROOT   = pathlib.Pa
+17:45:53 | INFO  |   [WRITE] 26 — DONE (0.0s) — Script written (22154 chars, 515 lines)
+17:45:54 | WARNING |   [WARN] 26 — Local validation failed (attempt 3): SyntaxError at line 516: '(' was never closed. Offending line: 'lines.append(f"\\n> ⚠️ **ANOMALY:** {len('
+17:46:06 | INFO  |   [WRITE] 27 — DONE (94.5s) — Script written (20971 chars, 493 lines)
+17:46:06 | DEBUG |     response: # Analysis/scripts/23_exit_profile.py
+import sys
+import warnings
+import numpy as np
+import pandas as pd
+import pathlib
+import re
+import json
+
+warnings.filterwarnings("ignore")
+np.random.seed(42)
+
+# ── paths ────────────────────────────────────────────────────────────────────
+REPO_ROOT   = pathlib.Pa
+17:46:06 | INFO  |   [WRITE] 27 — DONE (0.0s) — Script written (20971 chars, 493 lines)
+17:46:06 | WARNING |   [WARN] 27 — Local validation failed (attempt 3): SyntaxError at line 468: invalid syntax. Offending line: 'saved_$ = saved_ticks * TICK_VALUE * pd.to_numeric(stop_trades.loc[better_mask, "contracts"], errors="coerce").fillna(1)'; Missing required print sections: ['[SAVED]']. Each phase script must call print() with these tags.
+17:46:06 | INFO  |   [PHASE_FAILED] phase_id=26 | error=Validation failed after 3 attempts
+17:46:06 | INFO  |   [PHASE_FAILED] phase_id=27 | error=Validation failed after 3 attempts
+17:46:06 | INFO  |   [SCHEDULER_TICK] iteration=2 | pending=['28'] | completed=[]

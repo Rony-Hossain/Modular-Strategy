@@ -714,6 +714,41 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
             }
 
+            // ── Stage 6b: Post-T1 CVD slope tightening ──────────────────────
+            // BUG-005 FIX: CVD slope reversal was ignored after T1 because
+            // Trigger D (line 572) is gated by !_t1Hit. The runner had zero
+            // tape-reversal protection — 0% reaction rate on 452 CVD flips.
+            //
+            // Fix: when T1 is already hit and CVD accelerates against the
+            // position, tighten the T2 stop to lock 50% of open runner gain.
+            // This does NOT flatten — it just pulls the stop closer so the
+            // ATR trail in Stage 7 doesn't give back the entire move.
+            if (_t1Hit && snapshot.GetFlag(SnapKeys.HasVolumetric))
+            {
+                double cvdSlope = snapshot.Get(SnapKeys.CvdSlope);
+                bool cvdAgainst = isLong
+                    ? cvdSlope < -CVD_SLOPE_BE_THRESHOLD
+                    : cvdSlope >  CVD_SLOPE_BE_THRESHOLD;
+
+                if (cvdAgainst)
+                {
+                    double runnerGainTicks = isLong
+                        ? (close - _fillPrice) / tickSize
+                        : (_fillPrice - close) / tickSize;
+
+                    if (runnerGainTicks > 0)
+                    {
+                        double lockTicks = runnerGainTicks * 0.5;
+                        double lockPrice = isLong
+                            ? _fillPrice + lockTicks * tickSize
+                            : _fillPrice - lockTicks * tickSize;
+
+                        TryImproveLegStop(activeSignal, snapshot.Primary.Time, lockPrice, tickSize, "T2",
+                            string.Format("CVD_Tighten(slope={0:F1},lock={1:F1}t)", cvdSlope, lockTicks));
+                    }
+                }
+            }
+
             // ── Stage 7: ATR-proportional trailing stop ────────────────────
             // Pre-T1:  ATR × 0.25 — scales with regime volatility.
             // Post-T1: ATR × 0.40 — wider room for runner.
@@ -726,10 +761,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                     ? MathPolicy.TrailingStop_Long(_fillPrice, close, _currentStopT1, _t1Hit, tickSize, _maxMFETicks, beThresh, atrTicksT1)
                     : MathPolicy.TrailingStop_Short(_fillPrice, close, _currentStopT1, _t1Hit, tickSize, _maxMFETicks, beThresh, atrTicksT1);
 
-                // T2 Trail: Conservative, ignores tighten factor to allow runners to run
+                // T2 Trail: Dampened tighten factor — sqrt() so runners still have room
+                // BUG-002 FIX: Previously used raw atrTicks, ignoring advisorTrailFactor
+                // entirely. 62.6% of TA_TIGHTEN decisions failed to produce a STOP_MOVE
+                // within 2 bars because the T2 leg never responded.
+                // sqrt(factor) dampens the tightening: factor=2.0 → T1 gets /2.0, T2 gets /1.41
+                double t2Factor = advisorTrailFactor > 1.0 ? Math.Sqrt(advisorTrailFactor) : 1.0;
+                double atrTicksT2 = t2Factor > 1.0 ? atrTicks / t2Factor : atrTicks;
                 double newStopT2 = isLong
-                    ? MathPolicy.TrailingStop_Long(_fillPrice, close, _currentStopT2, _t1Hit, tickSize, _maxMFETicks, beThresh, atrTicks)
-                    : MathPolicy.TrailingStop_Short(_fillPrice, close, _currentStopT2, _t1Hit, tickSize, _maxMFETicks, beThresh, atrTicks);
+                    ? MathPolicy.TrailingStop_Long(_fillPrice, close, _currentStopT2, _t1Hit, tickSize, _maxMFETicks, beThresh, atrTicksT2)
+                    : MathPolicy.TrailingStop_Short(_fillPrice, close, _currentStopT2, _t1Hit, tickSize, _maxMFETicks, beThresh, atrTicksT2);
 
                 if (Math.Abs(newStopT1 - _currentStopT1) > tickSize * 0.5)
                     TryImproveLegStop(activeSignal, snapshot.Primary.Time, newStopT1, tickSize, "T1", "Trail");

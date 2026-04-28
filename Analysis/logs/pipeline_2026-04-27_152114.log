@@ -1,0 +1,146 @@
+15:21:14 | INFO  | Pipeline log: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-27_152114.log
+15:21:14 | INFO  | Pipeline JSONL: D:\Ninjatrader-Modular-Startegy\Analysis\logs\pipeline_2026-04-27_152114.jsonl
+15:21:14 | INFO  |   [PIPELINE_START] repo_root=D:\Ninjatrader-Modular-Startegy | plan_dir=D:\Ninjatrader-Modular-Startegy\Backtest_Analysis_ML_plan | phase_ids=['26', '27', '28'] | skip_existing=False
+15:21:17 | INFO  |   [HEALTH_CHECK] claude=True | gemini=True
+15:21:17 | INFO  |   [SCHEDULER_TICK] iteration=1 | pending=['26', '27', '28'] | completed=[]
+15:21:17 | INFO  | ============================================================
+15:21:17 | INFO  | [PHASE 26] START — 26_ta_decision_audit.py
+15:21:17 | INFO  | ============================================================
+15:21:17 | INFO  | ============================================================
+15:21:17 | INFO  | [PHASE 27] START — 27_funnel_orphan_audit.py
+15:21:17 | INFO  | ============================================================
+15:21:18 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi
+15:21:18 | INFO  |   [ARTIFACT_SAMPLE] count=10 | files=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter_audi
+15:21:18 | INFO  |   [ARTIFACT_PREVIEW] phase_id=26 | sampled=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter
+15:21:18 | INFO  |   [ARTIFACT_PREVIEW] phase_id=27 | sampled=['bos_choch_audit.parquet', 'bos_choch_summary.csv', 'bos_choch_summary.md', 'context_bars.parquet', 'dynamic_be.parquet', 'evals.parquet', 'filter_audit_matrix.parquet', 'filter
+15:21:18 | INFO  |   [PLAN-FAST] 26 — templated planning for 26_ta_decision_audit.py
+15:21:18 | DEBUG |     prompt: # Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list.
+
+## Spri
+15:21:18 | INFO  |   [PLAN-FAST] 26 — DONE (0.0s) — templated prompt ready (7269 chars)
+15:21:18 | INFO  |   [PLAN-FAST] 27 — templated planning for 27_funnel_orphan_audit.py
+15:21:18 | DEBUG |     prompt: # Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list.
+
+## Spri
+15:21:18 | INFO  |   [PLAN-FAST] 27 — DONE (0.0s) — templated prompt ready (7269 chars)
+15:21:18 | INFO  |   [WRITE] 26 — Gemini writing 26_ta_decision_audit.py
+15:21:18 | DEBUG |     prompt: # Mission
+# Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list
+15:21:18 | INFO  |   [WRITE] 27 — Gemini writing 27_funnel_orphan_audit.py
+15:21:18 | DEBUG |     prompt: # Mission
+# Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list
+15:22:03 | WARNING |   [WARN] 27 — Primary Gemini failed, using fallback
+15:23:22 | INFO  |   [WRITE] 26 — DONE (124.5s) — Script written (32997 chars, 590 lines)
+15:23:22 | DEBUG |     response: ```python
+import pandas as pd
+import numpy as np
+from pathlib import Path
+import re
+from scipy.stats import t
+import sys
+
+# Set random seed for reproducibility
+np.random.seed(42)
+
+# --- Configuration ---
+# Path constants
+REPO_ROOT = Path("D:/Ninjatrader-Modular-Startegy")
+ANALYSIS_DIR = REPO_ROOT / 
+15:23:23 | INFO  |   [WRITE] 26 — Gemini writing 26_ta_decision_audit.py (with feedback)
+15:23:23 | DEBUG |     prompt: # Mission
+# Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list
+15:24:05 | INFO  |   [WRITE] 27 — Gemini writing 27_funnel_orphan_audit.py
+15:24:05 | DEBUG |     prompt: # Mission
+# Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list
+15:24:07 | WARNING |   [WARN] 27 — Primary Gemini failed, using fallback
+15:25:26 | INFO  |   [WRITE] 26 — DONE (122.9s) — Script written (25658 chars, 483 lines)
+15:25:26 | DEBUG |     response: ```python
+import pandas as pd
+import numpy as np
+from pathlib import Path
+import re
+
+# --- Hard requirements ---
+MIN_N = 50  # Minimum sample size for any subgroup finding, as per prompt.
+OUTPUT_DIR = Path("D:/Ninjatrader-Modular-Startegy/Analysis/artifacts/")
+INPUT_DIR = Path("D:/Ninjatrader-Modula
+15:25:26 | INFO  |   [WRITE] 26 — Gemini writing 26_ta_decision_audit.py (with feedback)
+15:25:26 | DEBUG |     prompt: # Mission
+# Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list
+15:26:25 | INFO  |   [WRITE] 27 — DONE (139.7s) — Script written (36527 chars, 701 lines)
+15:26:25 | DEBUG |     response: ```python
+import pandas as pd
+import numpy as np
+from pathlib import Path
+import re
+import json
+import sys
+
+# --- Configuration ---
+MIN_N = 30
+ARTIFACTS_DIR = Path("D:/Ninjatrader-Modular-Startegy/Analysis/artifacts/")
+SCHEMA_PATH = ARTIFACTS_DIR / "schema.md"
+TRADE_LIFECYCLE_PATH = ARTIFACTS_DIR / 
+15:26:25 | INFO  |   [WRITE] 27 — Gemini writing 27_funnel_orphan_audit.py (with feedback)
+15:26:25 | DEBUG |     prompt: # Mission
+# Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list
+15:27:21 | INFO  |   [WRITE] 26 — DONE (115.2s) — Script written (31698 chars, 537 lines)
+15:27:21 | DEBUG |     response: ```python
+import pandas as pd
+import numpy as np
+from pathlib import Path
+import re
+from datetime import timedelta
+from scipy import stats # For median, mean, std
+
+# --- Configuration ---
+MIN_N = 30
+# Default instrument specific values. These would typically come from a config file (e.g., strategy_c
+15:27:35 | INFO  |   [WRITE] 27 — DONE (69.3s) — Script written (31205 chars, 635 lines)
+15:27:35 | DEBUG |     response: ```python
+import pandas as pd
+import numpy as np
+import re
+from pathlib import Path
+import json
+
+# --- Configuration ---
+MIN_N = 30
+ARTIFACTS_DIR = Path("Analysis/artifacts/")
+SCRIPTS_DIR = Path("Analysis/scripts/")
+
+# Hardcoded values for tick_size and point_value as strategy_config.INSTRUMENTS is 
+15:27:35 | INFO  |   [WRITE] 27 — Gemini writing 27_funnel_orphan_audit.py (with feedback)
+15:27:35 | DEBUG |     prompt: # Mission
+# Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list
+15:29:09 | WARNING |   [WARN] 27 — Primary Gemini failed, using fallback
+15:29:12 | INFO  |   [WRITE] 27 — Gemini writing 27_funnel_orphan_audit.py (with feedback)
+15:29:12 | DEBUG |     prompt: # Mission
+# Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list
+15:29:35 | WARNING |   [WARN] 27 — Primary Gemini failed, using fallback
+15:30:05 | INFO  |   [WRITE] 27 — Gemini writing 27_funnel_orphan_audit.py (with feedback)
+15:30:05 | DEBUG |     prompt: # Mission
+# Part 4 — Bug-Hunting Sprint (3.5-Month Dataset)
+
+> Find every bug we can before extending the backtest. Five focused audits, ranked by finding probability, producing a concrete C# fix list
+15:30:06 | WARNING |   [WARN] 27 — Primary Gemini failed, using fallback

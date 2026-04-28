@@ -1,0 +1,2 @@
+{"ts": "2026-04-24T21:48:40.673019+00:00", "event": "PIPELINE_START", "repo_root": "D:\\Ninjatrader-Modular-Startegy", "plan_dir": "D:\\Ninjatrader-Modular-Startegy\\Backtest_Analysis_ML_plan", "phase_ids": ["25"], "skip_existing": false}
+{"ts": "2026-04-24T21:48:45.957620+00:00", "event": "error", "phase_id": "startup", "message": "Claude CLI unavailable"}

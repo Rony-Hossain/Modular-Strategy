@@ -100,9 +100,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // LAYER A — MTFA macro bias (0–30)
             // Disabled for BOSWave — flow signals are direction-agnostic to HTF EMA.
             // =============================================================
-            double h4b = snap.Get(SnapKeys.H1EmaBias);
+            double h4b = snap.Get(SnapKeys.H4HrEmaBias);
             double h2b = snap.Get(SnapKeys.H2HrEmaBias);
-            double h1b = snap.Get(SnapKeys.H4HrEmaBias);
+            double h1b = snap.Get(SnapKeys.H1EmaBias);
 
             if (!isBOSWave)
             {
@@ -360,6 +360,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             // =============================================================
             // TOTAL
             // =============================================================
+            int bonus = 0;
             int rawTotal = layerA + layerB + layerC + layerD;
 
             //bool isORB = p.Source == SignalSource.ORB_Breakout || p.Source == SignalSource.ORB_Retest;
@@ -384,7 +385,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double poc = snap.Get(SnapKeys.POC);
                 double val = snap.Get(SnapKeys.VALow);
                 if (poc > 0 && p.Close > poc) penalty += StrategyConfig.Confluence.PENALTY_ABOVE_FAIR; // Penalty for buying above fair value
-                if (val > 0 && p.Close < val) rawTotal += StrategyConfig.Confluence.BONUS_DEEP_DISCOUNT; // Bonus for buying at deep discount
+                if (val > 0 && p.Close < val) { bonus += StrategyConfig.Confluence.BONUS_DEEP_DISCOUNT; rawTotal += bonus; } // Bonus for buying at deep discount
             }
 
             int netScore = Math.Max(0, rawTotal - penalty);
@@ -515,6 +516,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 LayerB     = layerB,
                 LayerC     = layerC,
                 LayerD     = layerD,
+                Bonus      = bonus,
                 Penalty    = penalty,
                 NetScore   = netScore,
                 IsVetoed   = isVetoed,
@@ -630,6 +632,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int    LayerB     { get; set; }
         public int    LayerC     { get; set; }
         public int    LayerD     { get; set; }
+        public int    Bonus      { get; set; }
         public int    Penalty    { get; set; }
         public int    NetScore   { get; set; }
         public bool   IsVetoed   { get; set; }
@@ -646,14 +649,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             => new ConfluenceResult { IsValid = false, Multiplier = 1.0 };
 
         public override string ToString()
-            => string.Format("A={0} B={1} C={2} D={3} Pen={4} Net={5} Mult={6:F2}{7}",
-                LayerA, LayerB, LayerC, LayerD, Penalty, NetScore,
+            => string.Format("A={0} B={1} C={2} D={3} Bon={4} Pen={5} Net={6} Mult={7:F2}{8}",
+                LayerA, LayerB, LayerC, LayerD, Bonus, Penalty, NetScore,
                 Multiplier, IsVetoed ? " VETOED" : "");
 
         /// <summary>Full debug string including per-layer reasons.</summary>
         public string ToDetailString()
-            => string.Format("A={0} B={1} C={2} D={3} Pen={4} Net={5} Mult={6:F2}{7} | {8}",
-                LayerA, LayerB, LayerC, LayerD, Penalty, NetScore,
+            => string.Format("A={0} B={1} C={2} D={3} Bon={4} Pen={5} Net={6} Mult={7:F2}{8} | {9}",
+                LayerA, LayerB, LayerC, LayerD, Bonus, Penalty, NetScore,
                 Multiplier, IsVetoed ? " VETOED" : "",
                 string.IsNullOrEmpty(Detail) ? "?" : Detail);
     }
